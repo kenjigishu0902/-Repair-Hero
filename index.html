@@ -3,45 +3,55 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#07131f">
+  <meta name="theme-color" content="#102b46">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <title>Repair Hero</title>
-  <meta name="description" content="スマホ修理屋を舞台にした爽快横スクロール2Dアクションゲーム">
+  <title>Repair Hero — スマホ修理商店街</title>
+  <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <main id="app">
-    <canvas id="gameCanvas" aria-label="Repair Hero game screen"></canvas>
+    <canvas id="game" aria-label="Repair Hero ゲーム画面"></canvas>
 
-    <section id="titleScreen" class="screen title-screen">
-      <div class="shop-sign">PHOENIX MOBILE REPAIR <span>OPEN</span></div>
-      <div class="title-hero" aria-hidden="true"><i class="hair"></i><i class="face">•ᴗ•</i><i class="body">R</i><i class="tool">✦</i></div>
-      <div class="logo"><small>超爽快リペアアクション</small><h1>REPAIR<br><em>HERO</em></h1><p>壊れた世界を、修理せよ。</p></div>
-      <nav class="title-menu">
-        <button id="startBtn" class="start-btn"><span>▶</span> START <small>STAGE 1 / 修理店</small></button>
-        <div><button data-panel="settings">⚙ 設定</button><button data-panel="ranking">★ ランキング</button><button data-panel="catalog">▦ 図鑑</button></div>
-      </nav>
-      <p class="copyright">© 2026 PHOENIX WORKS / PRESS ENTER</p>
+    <header id="hud" class="hud hidden" aria-label="ゲーム情報">
+      <div class="hp"><span>HP</span><b id="hearts">♥ ♥ ♥</b></div>
+      <div><span>COIN</span><b>● <i id="coins">00</i></b></div>
+      <div><span>SCORE</span><b id="score">000000</b></div>
+      <div><span>TIME</span><b id="timer">120</b></div>
+    </header>
+
+    <section id="title" class="screen title">
+      <div class="title-badge">STAGE 1</div>
+      <h1><span>REPAIR</span><strong>HERO</strong></h1>
+      <p>スマホ修理商店街を救え！</p>
+      <div class="title-feni" aria-hidden="true">🔥<span>フェニちゃん</span></div>
+      <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
+      <p class="help">A / ←・D / → 移動　SPACE ジャンプ　SHIFT ダッシュ</p>
     </section>
 
-    <section id="hud" class="hud hidden">
-      <div class="hud-left"><div class="portrait">🔥</div><div class="vitals"><b>FENI-CHAN <span id="levelText">LV.1</span></b><div class="hp"><i id="hpBar"></i><span>HP</span></div><small>LIFE <span id="lifeText">♥♥♥</span></small></div><dl><dt>COIN</dt><dd>● <span id="coinText">000</span></dd><dt>SCORE</dt><dd id="scoreText">0000000</dd><dt>COMBO</dt><dd><span id="comboText">0</span> HIT</dd></dl></div>
-      <div id="stageBanner" class="stage-banner"><small>STAGE 1</small><b>修理店</b></div>
-      <div class="burst"><b>REPAIR BURST</b><div><i id="burstBar"></i><span id="burstReady">CHARGING</span></div></div>
+    <section id="result" class="screen result hidden">
+      <div>
+        <p id="resultKicker">STAGE CLEAR!</p>
+        <h2 id="resultTitle">修理完了！</h2>
+        <p id="resultStats"></p>
+        <button id="retry">もう一度</button>
+        <button id="backTitle" class="secondary">タイトルへ</button>
+      </div>
     </section>
 
-    <div id="bossHud" class="boss-hud hidden"><b id="bossName">巨大スマホ</b><div><i id="bossBar"></i></div></div>
-    <div id="message" class="message"></div>
-    <div id="burstOverlay" class="burst-overlay hidden"><div class="cutin"><div class="cutin-face">🔥<b>フェニちゃん</b></div><strong>REPAIR<br>BURST!!</strong></div></div>
+    <div id="notice" class="notice" aria-live="polite"></div>
+    <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
 
-    <section id="pausePanel" class="modal hidden"><div class="panel"><button class="close">×</button><h2 id="panelTitle">設定</h2><div id="panelContent"></div></div></section>
-    <section id="resultScreen" class="screen result-screen hidden"><div><small id="resultKicker">STAGE CLEAR</small><h2 id="resultGrade">S</h2><h3 id="resultName">REPAIR COMPLETE!</h3><dl><dt>SCORE</dt><dd id="resultScore">0</dd><dt>COIN</dt><dd id="resultCoin">0</dd><dt>MAX COMBO</dt><dd id="resultCombo">0</dd></dl><button id="nextBtn">NEXT STAGE ▶</button><button id="titleBtn">TITLE</button></div></section>
-
-    <nav id="touchControls" class="touch hidden" aria-label="タッチ操作">
-      <div class="touch-left"><button data-key="left">◀</button><button data-key="right">▶</button><button data-key="down">▼</button></div>
-      <div class="touch-right"><button data-key="dash" class="dash">DASH</button><button data-key="burst" class="special">必殺</button><button data-key="attack" class="attack">攻撃</button><button data-key="jump" class="jump">JUMP</button></div>
+    <nav id="touch" class="touch hidden" aria-label="タッチ操作">
+      <div class="move-pad">
+        <button data-input="left" aria-label="左へ移動">◀</button>
+        <button data-input="right" aria-label="右へ移動">▶</button>
+      </div>
+      <div class="action-pad">
+        <button data-input="dash" class="dash">DASH</button>
+        <button data-input="jump" class="jump">JUMP</button>
+      </div>
     </nav>
-    <button id="pauseBtn" class="pause hidden" aria-label="ポーズ">Ⅱ</button>
   </main>
   <script src="game.js"></script>
 </body>
