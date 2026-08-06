@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#090706">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <title>Repair Rush</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main id="game" aria-label="Repair Rush game">
+    <header class="hud">
+      <div><small>LEVEL</small><b id="level">01</b></div>
+      <div><small>RANK</small><b id="rank">D</b></div>
+      <div class="combo"><small>COMBO</small><b id="combo">0</b></div>
+      <div><small>TIME</small><b id="time">60.0</b></div>
+      <div><small>売上</small><b>¥<span id="money">0</span></b></div>
+      <div class="lives"><small>LIFE</small><b id="lives">♥ ♥ ♥</b></div>
+      <div class="burst"><small>REPAIR BURST</small><div class="meter"><i id="burstFill"></i></div></div>
+    </header>
+
+    <section class="stage">
+      <canvas id="canvas" width="1280" height="720"></canvas>
+      <div class="scanlines"></div>
+      <div id="mission" class="mission hidden"></div>
+      <div id="toast" class="toast"></div>
+      <button id="sound" class="sound" aria-label="サウンド切替">♪ ON</button>
+    </section>
+
+    <section id="start" class="overlay start-screen">
+      <div class="logo-mark">RR</div>
+      <p class="eyebrow">THE ULTIMATE REPAIR ACTION</p>
+      <h1>REPAIR <em>RUSH</em></h1>
+      <p class="tagline">壊れた未来を、最速で直せ。</p>
+      <button id="startBtn" class="primary">受付開始 <span>▶</span></button>
+      <p class="hint">TAP / DRAG / SWIPE / HOLD</p>
+    </section>
+
+    <section id="result" class="overlay result hidden">
+      <p class="eyebrow">REPAIR COMPLETE</p>
+      <h2 id="resultRank">S</h2>
+      <h3 id="resultTitle">MISSION CLEARED</h3>
+      <div class="result-grid"><div><small>SCORE</small><b id="score">0</b></div><div><small>BEST COMBO</small><b id="bestCombo">0</b></div><div><small>REWARD</small><b id="reward">¥0</b></div></div>
+      <div class="xp"><span>TOOL EXP</span><i><b id="xpFill"></b></i><strong id="toolLevel">Lv.1</strong></div>
+      <button id="againBtn" class="primary">次の依頼へ <span>▶</span></button>
+    </section>
+
+    <nav class="instructions"><span id="stepName">受付</span><b id="instruction">依頼を確認して受付開始！</b><div id="dots"></div></nav>
+  </main>
+  <script src="game.js"></script>
+</body>
+</html>
