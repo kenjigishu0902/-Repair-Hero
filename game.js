@@ -6,7 +6,7 @@
   const $ = (selector) => document.querySelector(selector);
   const ui = {
     title: $('#title'), result: $('#result'), hud: $('#hud'), touch: $('#touch'), pause: $('#pause'),
-    hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), notice: $('#notice')
+    hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), dashGauge: $('#dashGauge'), notice: $('#notice')
   };
 
   const WORLD_WIDTH = 7600;
@@ -15,7 +15,7 @@
   const PLAYER_H = 112;
   const MAX_JUMPS = 2;
   const feniImage = new Image();
-  feniImage.src = 'assets/images/fenichan.svg';
+  feniImage.src = 'assets/images/fenichan.png';
   const GRAVITY = 1800;
   const MAX_FALL = 920;
   const START_TIME = 150;
@@ -45,6 +45,9 @@
   let checkpoint;
   let goal;
   let remainingTime;
+  let items;
+  let confetti;
+  let clearTimer = 0;
 
   const staticPlatforms = [
     { x: 0, y: FLOOR_Y, w: 720, h: 130 },
@@ -76,6 +79,13 @@
     ['wet', 2800, 390], ['battery', 3470, 360], ['cracked', 3770, 290],
     ['wet', 4370, 350], ['cracked', 5120, 375], ['battery', 5900, 385],
     ['wet', 6220, 300], ['cracked', 6870, 360]
+  ];
+
+  const jumpPads = [{x:1540,y:FLOOR_Y-18,w:58,h:18},{x:4740,y:FLOOR_Y-73,w:58,h:18}];
+
+  const itemBlueprints = [
+    ['battery', 1120, 380], ['screen', 2260, 305], ['toolbox', 3650, 305],
+    ['fire', 5180, 385], ['fenicoin', 6260, 300]
   ];
 
   const coinBlueprints = [
@@ -111,10 +121,12 @@
     Object.keys(input).forEach((key) => { input[key] = false; });
     player = { x: 150, y: FLOOR_Y - PLAYER_H, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0,
       grounded: true, hp: 3, coins: 0, score: 0, invincible: 0, state: 'idle', anim: 0,
-      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, dead: false };
+      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, dead: false, dash: 100, boost: 0, clearTime: 0 };
     enemies = enemyBlueprints.map(makeEnemy);
     droplets = [];
     coins = coinBlueprints.map(([x, y]) => ({ x, y, collected: false, phase: x / 30 }));
+    items = itemBlueprints.map(([type,x,y]) => ({ type,x,y,collected:false,phase:x/40 }));
+    confetti = [];
     dust = [];
     sparks = [];
     afterimages = [];
@@ -143,11 +155,13 @@
     ui.touch.classList.remove('hidden');
     ui.pause.classList.remove('hidden');
     say('STAGE 1　スマホ修理商店街');
+    window.RepairHeroSound?.music('game');
     sound('start');
   }
 
   function setModeResult(cleared) {
     mode = cleared ? 'clear' : 'gameover';
+    window.RepairHeroSound?.music(null);
     ui.hud.classList.add('hidden');
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
@@ -155,7 +169,7 @@
     $('#resultTitle').textContent = cleared ? '修理完了！' : 'もう一度挑戦！';
     $('#resultStats').textContent = `SCORE ${String(player.score).padStart(6, '0')}　● ${player.coins}`;
     ui.result.classList.remove('hidden');
-    sound(cleared ? 'clear' : 'damage');
+    sound(cleared ? 'clear' : 'gameover');
   }
 
   function showTitle() {
@@ -166,6 +180,7 @@
     ui.hud.classList.add('hidden');
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
+    window.RepairHeroSound?.music('title');
   }
 
   function say(text) {
@@ -235,7 +250,7 @@
     player.vy = 0;
     player.invincible = 1.8;
     player.jumpCount = 0; player.spin = 0;
-    cameraX = Math.max(0, player.x - 360);
+    cameraX = player.spawnCamera;
     say('落下！ チェックポイントから再開');
     updateHud();
   }
@@ -248,7 +263,11 @@
     const normalDirection = Number(input.right) - Number(input.left);
     const direction = dashDirection || normalDirection;
     const dashing = dashDirection !== 0;
-    const targetSpeed = direction * (dashing ? 455 : 245);
+    player.boost = Math.max(0, player.boost - dt);
+    const canDash = dashing && player.dash > 0;
+    player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -38 : 24) * dt));
+    const targetSpeed = direction * (canDash ? (player.boost ? 610 : 455) : 245);
+    if (canDash && Math.floor(elapsed * 9) !== Math.floor((elapsed-dt)*9)) sound('dash');
     const acceleration = player.grounded ? 1900 : 1050;
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
     if (!direction && player.grounded) player.vx *= Math.pow(.0008, dt);
@@ -277,17 +296,23 @@
       player.jumpCount = 0; player.spin = 0; player.justLanded = .16; landingShake = 5;
       spawnDust(player.x + player.w / 2, player.y + player.h, 6);
     }
+    for (const pad of jumpPads) {
+      if (player.vy >= 0 && player.x + player.w > pad.x && player.x < pad.x + pad.w && player.y + player.h >= pad.y && player.y + player.h <= pad.y + 24) {
+        player.y = pad.y - player.h; player.vy = -850; player.grounded = false; player.jumpCount = 1;
+        spawnDust(player.x + player.w / 2,pad.y,10); sound('jump'); say('SUPER JUMP!');
+      }
+    }
     if (player.y > 790) respawnAfterFall();
 
     const speed = Math.abs(player.vx);
     if (player.justLanded) player.state = 'land';
     else if (!player.grounded) player.state = player.vy < 0 ? (player.jumpCount === 2 ? 'doubleJump' : 'jump') : 'fall';
-    else if (dashing && speed > 300) player.state = 'dash';
+    else if (canDash && speed > 300) player.state = 'dash';
     else if (speed > 30) player.state = 'walk';
     else player.state = 'idle';
     player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 9 : 3);
     if (player.grounded && speed > 100 && Math.floor(player.anim * 2) !== Math.floor((player.anim - dt * 9) * 2)) spawnDust(player.x, player.y + player.h, dashing ? 3 : 1);
-    if (dashing) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*24) !== Math.floor((elapsed-dt)*24)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.2}); }
+    if (canDash) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*24) !== Math.floor((elapsed-dt)*24)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.2}); }
   }
 
   function updateEnemies(dt) {
@@ -345,19 +370,35 @@
         coin.collected = true; player.coins += 1; player.score += 100; sound('coin'); updateHud();
       }
     }
+    for (const item of items) {
+      item.phase += dt * 4;
+      if (item.collected || !overlap(player,{x:item.x-18,y:item.y-18,w:36,h:36})) continue;
+      item.collected=true; const labels={battery:'HP RECOVER',screen:'LCD +1000',toolbox:'DASH BOOST',fenicoin:'FENI COIN +3000',fire:'INVINCIBLE'};
+      if(item.type==='battery') player.hp=Math.min(3,player.hp+1);
+      if(item.type==='screen') player.score+=1000;
+      if(item.type==='toolbox') { player.boost=8; player.dash=100; }
+      if(item.type==='fenicoin') { player.score+=3000; player.coins+=5; }
+      if(item.type==='fire') player.invincible=8;
+      say(labels[item.type]); sound(item.type==='fenicoin'?'coin':'item');
+      for(let i=0;i<20;i+=1) sparks.push({x:item.x,y:item.y,vx:(Math.random()-.5)*300,vy:(Math.random()-.5)*300,life:.7,size:4});
+    }
     if (!checkpoint.active && player.x > checkpoint.x) {
-      checkpoint.active = true; player.spawnX = checkpoint.x + 35; player.spawnY = FLOOR_Y - 55 - PLAYER_H;
+      checkpoint.active = true; player.spawnX = checkpoint.x + 35; player.spawnY = FLOOR_Y - 55 - PLAYER_H; player.spawnCamera = Math.max(0, cameraX);
       player.score += 1000; say('CHECKPOINT!'); sound('checkpoint');
     }
-    if (player.x + player.w > goal.x) {
-      player.state = 'clear'; player.score += Math.ceil(remainingTime) * 25; setModeResult(true);
+    if (player.x + player.w > goal.x && !player.clearTime) {
+      player.clearTime = .001; player.vx = 0; player.score += Math.ceil(remainingTime) * 25; sound('goal');
+      say('STAGE CLEAR!!');
+      for(let i=0;i<100;i+=1) confetti.push({x:cameraX+Math.random()*1280,y:-Math.random()*500,vx:(Math.random()-.5)*100,vy:100+Math.random()*180,life:4,color:['#ff3b20','#ffd338','#41d9ec','#fff'][i%4]});
     }
+    if (player.clearTime) { player.clearTime += dt; player.state='clear'; player.x += ((cameraX+640-player.w/2)-player.x)*Math.min(1,dt*3); player.y += Math.sin(player.clearTime*9)*50*dt; player.spin += dt*5; if(player.clearTime>2.6) setModeResult(true); }
     dust.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += 130 * dt; particle.life -= dt; });
     dust = dust.filter((particle) => particle.life > 0);
     sparks.forEach((p) => { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 420*dt; p.life -= dt; });
     sparks = sparks.filter((p) => p.life > 0);
     afterimages.forEach((ghost) => { ghost.life -= dt; });
     afterimages = afterimages.filter((ghost) => ghost.life > 0);
+    confetti.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}); confetti=confetti.filter(p=>p.life>0);
   }
 
   function update(dt) {
@@ -366,8 +407,7 @@
     remainingTime = Math.max(0, remainingTime - dt);
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
-    updatePlayer(dt);
-    updateEnemies(dt);
+    if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
     const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - 1280, player.x - (player.facing > 0 ? 350 : 650)));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * 7);
     shake *= Math.pow(.02, dt);
@@ -381,6 +421,7 @@
     ui.coins.textContent = String(player.coins).padStart(2, '0');
     ui.score.textContent = String(player.score).padStart(6, '0');
     ui.timer.textContent = String(Math.ceil(remainingTime)).padStart(3, '0');
+    ui.dashGauge.value = player.dash;
   }
 
   function drawRoundedRect(x, y, w, h, radius) {
@@ -419,8 +460,10 @@
     ctx.save(); ctx.translate(-cameraX, 0);
     for (const platform of staticPlatforms) drawPlatform(platform);
     for (const platform of movingPlatforms) { drawPlatform(platform, true); }
+    jumpPads.forEach(drawJumpPad);
     drawScenery();
     coins.forEach(drawCoin);
+    items.forEach(drawItem);
     drawCheckpoint();
     drawGoal();
     enemies.forEach(drawEnemy);
@@ -430,6 +473,7 @@
     afterimages.forEach((ghost) => drawFeniSprite(ghost.x, ghost.y, ghost.facing, 0, .18 * ghost.life / .2));
     sparks.forEach((p) => { ctx.globalAlpha=p.life*1.7; ctx.fillStyle=Math.random()>.5?'#ffec48':'#ff5a1f'; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill(); });
     ctx.globalAlpha = 1;
+    confetti.forEach(p=>{ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,8,14);});
     drawPlayer();
     ctx.restore();
   }
@@ -441,6 +485,11 @@
     ctx.fillStyle = '#d8b76f';
     for (let x = platform.x + 8; x < platform.x + platform.w; x += 38) ctx.fillRect(x, platform.y + 4, 22, 4);
     if (moving) { ctx.fillStyle = '#172f3a'; ctx.font = 'bold 14px Arial'; ctx.fillText('◀  GEAR  ▶', platform.x + 10, platform.y + 15); }
+  }
+
+  function drawJumpPad(pad) {
+    ctx.fillStyle='#ff4a25'; ctx.fillRect(pad.x,pad.y,pad.w,pad.h);
+    ctx.fillStyle='#fff04a'; ctx.beginPath(); ctx.moveTo(pad.x+8,pad.y+12);ctx.lineTo(pad.x+29,pad.y+2);ctx.lineTo(pad.x+50,pad.y+12);ctx.fill();
   }
 
   function drawScenery() {
@@ -465,6 +514,14 @@
     ctx.fillStyle = '#fff49d'; ctx.fillRect(-3, -7, 4, 11); ctx.restore();
   }
 
+  function drawItem(item) {
+    if(item.collected) return;
+    const symbols={battery:'🔋',screen:'📱',toolbox:'🧰',fenicoin:'🔥',fire:'🔥'};
+    ctx.save(); ctx.translate(item.x,item.y+Math.sin(item.phase)*6); ctx.shadowColor='#fff25b'; ctx.shadowBlur=18;
+    ctx.fillStyle=item.type==='fenicoin'?'#ffd338':'#eaffff'; ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
+    ctx.shadowBlur=0; ctx.font='26px Arial'; ctx.textAlign='center'; ctx.fillText(symbols[item.type],0,9); ctx.restore();
+  }
+
   function drawCheckpoint() {
     ctx.fillStyle = '#6d4930'; ctx.fillRect(checkpoint.x, checkpoint.y, 8, 70);
     ctx.fillStyle = checkpoint.active ? '#51e77f' : '#e8eef0'; ctx.beginPath(); ctx.moveTo(checkpoint.x + 8, checkpoint.y); ctx.lineTo(checkpoint.x + 70, checkpoint.y + 18); ctx.lineTo(checkpoint.x + 8, checkpoint.y + 36); ctx.fill();
@@ -483,7 +540,7 @@
     const bob = player.grounded && speed > 25 ? -Math.abs(stride) * 6 : Math.sin(player.anim) * 1.5;
     const tilt = player.invincible > 0 ? Math.sin(elapsed*35)*.12 : player.state === 'dash' ? .16*facing : player.state === 'walk' ? .07*facing : player.state === 'fall' ? .05*facing : 0;
     const squash = player.state === 'land' ? .88 : 1;
-    ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing,squash);
+    ctx.save(); ctx.globalAlpha *= alpha; if(player.state==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing,squash);
     if (feniImage.complete && feniImage.naturalWidth) ctx.drawImage(feniImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
     ctx.restore();
   }
@@ -551,25 +608,27 @@
     const name = button.dataset.input;
     const press = (event) => { event.preventDefault(); input[name] = true; button.classList.add('pressed'); if (event.pointerId !== undefined) button.setPointerCapture?.(event.pointerId); };
     const release = (event) => { event.preventDefault(); input[name] = false; button.classList.remove('pressed'); };
-    button.addEventListener('pointerdown', press);
-    button.addEventListener('pointerup', release);
-    button.addEventListener('pointercancel', release);
-    button.addEventListener('lostpointercapture', release);
-    button.addEventListener('touchstart', press, { passive: false });
-    button.addEventListener('touchend', release, { passive: false });
-    button.addEventListener('touchcancel', release, { passive: false });
-    button.addEventListener('pointerenter', (event) => { if (event.buttons) press(event); });
-    button.addEventListener('pointerleave', (event) => { if (event.buttons) release(event); });
+    if (window.PointerEvent) {
+      button.addEventListener('pointerdown', press); button.addEventListener('pointerup', release);
+      button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
+      button.addEventListener('pointerenter', (event) => { if (event.buttons) press(event); });
+      button.addEventListener('pointerleave', (event) => { if (event.buttons) release(event); });
+    } else {
+      button.addEventListener('touchstart', press, { passive: false });
+      button.addEventListener('touchend', release, { passive: false });
+      button.addEventListener('touchcancel', release, { passive: false });
+    }
   });
 
   $('#start').addEventListener('click', startGame);
   $('#retry').addEventListener('click', startGame);
-  $('#backTitle').addEventListener('click', showTitle);
+  $('#next').addEventListener('click', startGame);
   ui.pause.addEventListener('click', () => { if (mode === 'playing') paused = !paused; });
   addEventListener('resize', resize);
   document.addEventListener('contextmenu', (event) => event.preventDefault());
 
   resize();
   resetGame();
+  window.RepairHeroSound?.music('title');
   if (!animationFrame) animationFrame = requestAnimationFrame(loop);
 })();
