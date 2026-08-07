@@ -11,12 +11,15 @@
 
   const WORLD_WIDTH = 7600;
   const FLOOR_Y = 610;
-  const PLAYER_W = 48;
-  const PLAYER_H = 66;
+  const PLAYER_W = 72;
+  const PLAYER_H = 112;
+  const MAX_JUMPS = 2;
+  const feniImage = new Image();
+  feniImage.src = 'assets/images/fenichan.svg';
   const GRAVITY = 1800;
   const MAX_FALL = 920;
   const START_TIME = 150;
-  const input = { left: false, right: false, jump: false, dash: false };
+  const input = { left: false, right: false, jump: false, dashLeft: false, dashRight: false };
   let width = 1280;
   let height = 720;
   let dpr = 1;
@@ -31,12 +34,13 @@
   let cameraX = 0;
   let shake = 0;
   let landingShake = 0;
-  let audioContext;
   let player;
   let enemies;
   let droplets;
   let coins;
   let dust;
+  let sparks;
+  let afterimages;
   let movingPlatforms;
   let checkpoint;
   let goal;
@@ -107,11 +111,13 @@
     Object.keys(input).forEach((key) => { input[key] = false; });
     player = { x: 150, y: FLOOR_Y - PLAYER_H, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0,
       grounded: true, hp: 3, coins: 0, score: 0, invincible: 0, state: 'idle', anim: 0,
-      facing: 1, jumpHeld: false, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, dead: false };
+      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, dead: false };
     enemies = enemyBlueprints.map(makeEnemy);
     droplets = [];
     coins = coinBlueprints.map(([x, y]) => ({ x, y, collected: false, phase: x / 30 }));
     dust = [];
+    sparks = [];
+    afterimages = [];
     movingPlatforms = [
       { x: 735, y: 500, baseX: 735, baseY: 500, w: 105, h: 18, axis: 'x', range: 80, speed: 1.15, lastX: 735, lastY: 500 },
       { x: 3090, y: 475, baseX: 3090, baseY: 475, w: 105, h: 18, axis: 'y', range: 95, speed: .9, lastX: 3090, lastY: 475 },
@@ -169,23 +175,7 @@
     ui.notice.classList.add('show');
   }
 
-  function sound(name) {
-    try {
-      audioContext ||= new (window.AudioContext || window.webkitAudioContext)();
-      if (audioContext.state === 'suspended') audioContext.resume();
-      const settings = { jump: [470, .1], coin: [930, .08], stomp: [190, .12], damage: [90, .25],
-        checkpoint: [620, .25], clear: [760, .5], start: [330, .2] }[name] || [220, .1];
-      const oscillator = audioContext.createOscillator();
-      const gain = audioContext.createGain();
-      oscillator.type = name === 'damage' ? 'sawtooth' : 'square';
-      oscillator.frequency.setValueAtTime(settings[0], audioContext.currentTime);
-      oscillator.frequency.exponentialRampToValueAtTime(settings[0] * 1.35, audioContext.currentTime + settings[1]);
-      gain.gain.setValueAtTime(.035, audioContext.currentTime);
-      gain.gain.exponentialRampToValueAtTime(.001, audioContext.currentTime + settings[1]);
-      oscillator.connect(gain).connect(audioContext.destination);
-      oscillator.start(); oscillator.stop(audioContext.currentTime + settings[1]);
-    } catch (_) { /* Web Audio is optional. */ }
-  }
+  function sound(name) { window.RepairHeroSound?.play(name); }
 
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
@@ -244,6 +234,7 @@
     player.vx = 0;
     player.vy = 0;
     player.invincible = 1.8;
+    player.jumpCount = 0; player.spin = 0;
     cameraX = Math.max(0, player.x - 360);
     say('落下！ チェックポイントから再開');
     updateHud();
@@ -252,41 +243,51 @@
   function updatePlayer(dt) {
     if (player.dead) return;
     player.invincible = Math.max(0, player.invincible - dt);
-    const direction = Number(input.right) - Number(input.left);
-    const targetSpeed = direction * (input.dash ? 390 : 245);
-    const acceleration = player.grounded ? 1750 : 920;
+    player.justLanded = Math.max(0, player.justLanded - dt);
+    const dashDirection = Number(input.dashRight) - Number(input.dashLeft);
+    const normalDirection = Number(input.right) - Number(input.left);
+    const direction = dashDirection || normalDirection;
+    const dashing = dashDirection !== 0;
+    const targetSpeed = direction * (dashing ? 455 : 245);
+    const acceleration = player.grounded ? 1900 : 1050;
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
     if (!direction && player.grounded) player.vx *= Math.pow(.0008, dt);
     if (direction) player.facing = direction;
 
-    if (input.jump && !player.jumpHeld && player.grounded) {
-      player.vy = -650;
+    if (input.jump && !player.jumpHeld && player.jumpCount < MAX_JUMPS) {
+      player.jumpCount += 1;
+      player.vy = player.jumpCount === 2 ? -720 : -650;
       player.grounded = false;
       player.jumpHeld = true;
-      spawnDust(player.x + player.w / 2, player.y + player.h, 5);
-      sound('jump');
+      if (player.jumpCount === 2) {
+        player.spin = Math.PI * 2;
+        for (let i = 0; i < 14; i += 1) sparks.push({ x:player.x+player.w/2, y:player.y+player.h*.75, vx:(Math.random()-.5)*260, vy:40+Math.random()*190, life:.45+Math.random()*.25, size:3+Math.random()*5 });
+        sound('doubleJump');
+      } else { spawnDust(player.x + player.w / 2, player.y + player.h, 5); sound('jump'); }
     }
     if (!input.jump) player.jumpHeld = false;
     if (!input.jump && player.vy < -220) player.vy += GRAVITY * 1.35 * dt;
+    if (player.spin > 0) player.spin = Math.max(0, player.spin - dt * 11);
 
     const wasGrounded = player.grounded;
     player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
     moveAndCollide(player, dt, true);
     player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
-
-    if (!wasGrounded && player.grounded && player.vy === 0) {
-      landingShake = 5;
+    if (!wasGrounded && player.grounded) {
+      player.jumpCount = 0; player.spin = 0; player.justLanded = .16; landingShake = 5;
       spawnDust(player.x + player.w / 2, player.y + player.h, 6);
     }
     if (player.y > 790) respawnAfterFall();
 
     const speed = Math.abs(player.vx);
-    if (!player.grounded) player.state = player.vy < 0 ? 'jump' : 'fall';
-    else if (speed > 300) player.state = 'run';
+    if (player.justLanded) player.state = 'land';
+    else if (!player.grounded) player.state = player.vy < 0 ? (player.jumpCount === 2 ? 'doubleJump' : 'jump') : 'fall';
+    else if (dashing && speed > 300) player.state = 'dash';
     else if (speed > 30) player.state = 'walk';
     else player.state = 'idle';
-    player.anim += dt * (player.state === 'run' ? 13 : player.state === 'walk' ? 8 : 3);
-    if (player.grounded && speed > 100 && Math.floor(player.anim * 2) !== Math.floor((player.anim - dt * 8) * 2)) spawnDust(player.x, player.y + player.h, 1);
+    player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 9 : 3);
+    if (player.grounded && speed > 100 && Math.floor(player.anim * 2) !== Math.floor((player.anim - dt * 9) * 2)) spawnDust(player.x, player.y + player.h, dashing ? 3 : 1);
+    if (dashing) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*24) !== Math.floor((elapsed-dt)*24)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.2}); }
   }
 
   function updateEnemies(dt) {
@@ -353,6 +354,10 @@
     }
     dust.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += 130 * dt; particle.life -= dt; });
     dust = dust.filter((particle) => particle.life > 0);
+    sparks.forEach((p) => { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 420*dt; p.life -= dt; });
+    sparks = sparks.filter((p) => p.life > 0);
+    afterimages.forEach((ghost) => { ghost.life -= dt; });
+    afterimages = afterimages.filter((ghost) => ghost.life > 0);
   }
 
   function update(dt) {
@@ -363,7 +368,7 @@
     updateObjects(dt);
     updatePlayer(dt);
     updateEnemies(dt);
-    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - 1280, player.x - 430));
+    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - 1280, player.x - (player.facing > 0 ? 350 : 650)));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * 7);
     shake *= Math.pow(.02, dt);
     landingShake *= Math.pow(.01, dt);
@@ -422,6 +427,9 @@
     droplets.forEach(drawDroplet);
     dust.forEach((particle) => { ctx.globalAlpha = particle.life * 1.8; ctx.fillStyle = '#dfc18a'; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, 7); ctx.fill(); });
     ctx.globalAlpha = 1;
+    afterimages.forEach((ghost) => drawFeniSprite(ghost.x, ghost.y, ghost.facing, 0, .18 * ghost.life / .2));
+    sparks.forEach((p) => { ctx.globalAlpha=p.life*1.7; ctx.fillStyle=Math.random()>.5?'#ffec48':'#ff5a1f'; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill(); });
+    ctx.globalAlpha = 1;
     drawPlayer();
     ctx.restore();
   }
@@ -470,29 +478,19 @@
     ctx.fillStyle = '#ffd238'; ctx.beginPath(); ctx.arc(goal.x + 6, goal.y, 12, 0, 7); ctx.fill();
   }
 
+  function drawFeniSprite(x, y, facing, rotation = 0, alpha = 1) {
+    const stride = Math.sin(player.anim); const speed = Math.abs(player.vx);
+    const bob = player.grounded && speed > 25 ? -Math.abs(stride) * 6 : Math.sin(player.anim) * 1.5;
+    const tilt = player.invincible > 0 ? Math.sin(elapsed*35)*.12 : player.state === 'dash' ? .16*facing : player.state === 'walk' ? .07*facing : player.state === 'fall' ? .05*facing : 0;
+    const squash = player.state === 'land' ? .88 : 1;
+    ctx.save(); ctx.globalAlpha *= alpha; ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing,squash);
+    if (feniImage.complete && feniImage.naturalWidth) ctx.drawImage(feniImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
+    ctx.restore();
+  }
+
   function drawPlayer() {
     if (player.invincible > 0 && Math.floor(elapsed * 14) % 2) return;
-    const speed = Math.abs(player.vx);
-    const stride = Math.sin(player.anim);
-    const bob = player.grounded && speed > 25 ? Math.abs(stride) * -4 : Math.sin(player.anim) * 1.5;
-    let sx = 1; let sy = 1; let tilt = 0;
-    if (player.state === 'jump') { sx = .9; sy = 1.12; tilt = -.08 * player.facing; }
-    if (player.state === 'fall') { sx = 1.12; sy = .9; tilt = .06 * player.facing; }
-    if (player.state === 'run') tilt = .13 * player.facing;
-    ctx.save(); ctx.translate(player.x + player.w / 2, player.y + player.h / 2 + bob); ctx.rotate(tilt); ctx.scale(player.facing * sx, sy);
-    ctx.fillStyle = '#ff351c';
-    ctx.beginPath(); ctx.moveTo(-20, -17); ctx.lineTo(-27, -41); ctx.lineTo(-10, -30); ctx.lineTo(0, -51); ctx.lineTo(10, -29); ctx.lineTo(27, -42); ctx.lineTo(20, -12); ctx.fill();
-    ctx.fillStyle = '#ff7421'; ctx.beginPath(); ctx.moveTo(-10, -30); ctx.lineTo(0, -43); ctx.lineTo(8, -27); ctx.fill();
-    ctx.fillStyle = '#fff2d2'; ctx.beginPath(); ctx.ellipse(0, -11, 21, 20, 0, 0, 7); ctx.fill();
-    ctx.fillStyle = '#25191c'; ctx.beginPath(); ctx.arc(8, -15, 4, 0, 7); ctx.fill();
-    ctx.fillStyle = '#ffae18'; ctx.beginPath(); ctx.moveTo(14, -7); ctx.lineTo(29, -2); ctx.lineTo(14, 3); ctx.fill();
-    ctx.fillStyle = '#e42f1e'; drawRoundedRect(-20, 5, 40, 32, 14);
-    ctx.fillStyle = '#ffd62e'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText('F', 0, 29);
-    const leg = player.grounded && speed > 25 ? stride * 9 : 0;
-    ctx.strokeStyle = '#64231b'; ctx.lineWidth = 9; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.moveTo(-8, 32); ctx.lineTo(-8 + leg, 43); ctx.moveTo(8, 32); ctx.lineTo(8 - leg, 43); ctx.stroke();
-    ctx.strokeStyle = '#ff4521'; ctx.lineWidth = 8; ctx.beginPath(); ctx.moveTo(-18, 10); ctx.lineTo(-25 - leg * .5, 27); ctx.moveTo(18, 10); ctx.lineTo(25 + leg * .5, 25); ctx.stroke();
-    ctx.restore();
+    drawFeniSprite(player.x, player.y, player.facing, player.spin);
   }
 
   function drawEnemy(enemy) {
@@ -539,23 +537,27 @@
     animationFrame = requestAnimationFrame(loop);
   }
 
-  const keyMap = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump', ShiftLeft: 'dash', ShiftRight: 'dash' };
+  const keyMap = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump' };
   addEventListener('keydown', (event) => {
     if ((event.code === 'Enter' || event.code === 'Space') && (mode === 'title' || mode === 'clear' || mode === 'gameover')) { event.preventDefault(); startGame(); return; }
     if (event.code === 'Escape' && mode === 'playing') { paused = !paused; return; }
     if (keyMap[event.code]) { event.preventDefault(); input[keyMap[event.code]] = true; }
+    if (event.code.startsWith('Shift')) { event.preventDefault(); input[player?.facing < 0 ? 'dashLeft' : 'dashRight'] = true; }
   });
-  addEventListener('keyup', (event) => { if (keyMap[event.code]) { event.preventDefault(); input[keyMap[event.code]] = false; } });
+  addEventListener('keyup', (event) => { if (keyMap[event.code]) { event.preventDefault(); input[keyMap[event.code]] = false; } if (event.code.startsWith('Shift')) { input.dashLeft=false; input.dashRight=false; } });
   addEventListener('blur', () => Object.keys(input).forEach((key) => { input[key] = false; }));
 
   document.querySelectorAll('[data-input]').forEach((button) => {
     const name = button.dataset.input;
-    const press = (event) => { event.preventDefault(); input[name] = true; button.classList.add('pressed'); button.setPointerCapture?.(event.pointerId); };
+    const press = (event) => { event.preventDefault(); input[name] = true; button.classList.add('pressed'); if (event.pointerId !== undefined) button.setPointerCapture?.(event.pointerId); };
     const release = (event) => { event.preventDefault(); input[name] = false; button.classList.remove('pressed'); };
     button.addEventListener('pointerdown', press);
     button.addEventListener('pointerup', release);
     button.addEventListener('pointercancel', release);
     button.addEventListener('lostpointercapture', release);
+    button.addEventListener('touchstart', press, { passive: false });
+    button.addEventListener('touchend', release, { passive: false });
+    button.addEventListener('touchcancel', release, { passive: false });
     button.addEventListener('pointerenter', (event) => { if (event.buttons) press(event); });
     button.addEventListener('pointerleave', (event) => { if (event.buttons) release(event); });
   });
