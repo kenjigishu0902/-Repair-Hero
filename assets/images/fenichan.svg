@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 320" role="img" aria-labelledby="title"><title id="title">フェニちゃん</title>
+<g stroke="#84271e" stroke-width="5" stroke-linejoin="round">
+<path fill="#ef4421" d="M60 148 22 108l39 4-13-54 43 34 13-67 28 58 32-41v69l44-29-20 73z"/><path fill="#ff9f1c" stroke="none" d="m84 126-24-35 39 16 12-49 19 48 24-30-3 57z"/>
+<path fill="#f04b25" d="m73 174-54 10 38 21-34 26 61-5m97-53 51 12-34 20 31 24-58-4"/><ellipse fill="#ef4324" cx="130" cy="196" rx="63" ry="80"/><ellipse fill="#fff0ce" cx="130" cy="199" rx="45" ry="55"/>
+<ellipse fill="#ff7130" cx="131" cy="155" rx="66" ry="52"/><ellipse fill="#fff1d5" stroke="none" cx="130" cy="166" rx="51" ry="39"/>
+<circle fill="#191b24" stroke="none" cx="113" cy="151" r="7"/><circle fill="#191b24" stroke="none" cx="157" cy="151" r="7"/><circle fill="white" stroke="none" cx="111" cy="148" r="2.5"/><circle fill="white" stroke="none" cx="155" cy="148" r="2.5"/>
+<path fill="#ffc928" stroke-width="3" d="m128 163 39 11-39 13 11-12z"/><circle fill="#ff8c78" stroke="none" cx="97" cy="171" r="8"/><circle fill="#ff8c78" stroke="none" cx="173" cy="169" r="8"/>
+<path fill="#ffd331" stroke="#9e4a17" stroke-width="2" d="m129 202-14 22 13-2-10 25 33-32-15 2 10-15z"/>
+<path fill="none" stroke="#6d2a20" stroke-width="9" stroke-linecap="round" d="m105 264-6 27m57-27 7 27"/><ellipse fill="#ffb51d" cx="93" cy="292" rx="20" ry="10"/><ellipse fill="#ffb51d" cx="170" cy="292" rx="20" ry="10"/>
+</g></svg>
