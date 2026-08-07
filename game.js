@@ -15,7 +15,7 @@
   const PLAYER_H = 112;
   const MAX_JUMPS = 2;
   const feniImage = new Image();
-  feniImage.src = 'assets/images/fenichan.png';
+  feniImage.src = './feni.png';
   const GRAVITY = 1800;
   const MAX_FALL = 920;
   const START_TIME = 150;
@@ -24,6 +24,7 @@
   let height = 720;
   let dpr = 1;
   let scale = 1;
+  let viewportWidth = 1280;
   let offsetX = 0;
   let offsetY = 0;
   let mode = 'title';
@@ -42,12 +43,11 @@
   let sparks;
   let afterimages;
   let movingPlatforms;
-  let checkpoint;
+  let checkpoints;
   let goal;
   let remainingTime;
   let items;
   let confetti;
-  let clearTimer = 0;
 
   const staticPlatforms = [
     { x: 0, y: FLOOR_Y, w: 720, h: 130 },
@@ -105,9 +105,10 @@
     canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    scale = Math.min(width / 1280, height / 720);
-    offsetX = (width - 1280 * scale) / 2;
-    offsetY = (height - 720 * scale) / 2;
+    scale = height / 720;
+    viewportWidth = width / scale;
+    offsetX = 0;
+    offsetY = 0;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -135,7 +136,11 @@
       { x: 3090, y: 475, baseX: 3090, baseY: 475, w: 105, h: 18, axis: 'y', range: 95, speed: .9, lastX: 3090, lastY: 475 },
       { x: 5535, y: 470, baseX: 5535, baseY: 470, w: 105, h: 18, axis: 'x', range: 75, speed: 1.25, lastX: 5535, lastY: 470 }
     ];
-    checkpoint = { x: 3900, y: FLOOR_Y - 70, active: false };
+    checkpoints = [
+      { x: 1570, y: FLOOR_Y - 70, active: false },
+      { x: 3900, y: FLOOR_Y - 125, active: false },
+      { x: 6400, y: FLOOR_Y - 70, active: false }
+    ];
     goal = { x: 7410, y: FLOOR_Y - 180 };
     remainingTime = START_TIME;
     elapsed = 0;
@@ -167,7 +172,7 @@
     ui.pause.classList.add('hidden');
     $('#resultKicker').textContent = cleared ? 'STAGE CLEAR!' : 'GAME OVER';
     $('#resultTitle').textContent = cleared ? '修理完了！' : 'もう一度挑戦！';
-    $('#resultStats').textContent = `SCORE ${String(player.score).padStart(6, '0')}　● ${player.coins}`;
+    $('#resultStats').textContent = `SCORE ${String(player.score).padStart(6, '0')}　COIN ${player.coins}　TIME ${Math.ceil(remainingTime)}`;
     ui.result.classList.remove('hidden');
     sound(cleared ? 'clear' : 'gameover');
   }
@@ -235,24 +240,30 @@
     updateHud();
     if (player.hp <= 0) {
       player.dead = true;
-      setTimeout(() => { if (mode === 'playing') setModeResult(false); }, 650);
+      setTimeout(() => { if (mode === 'playing') respawnAtCheckpoint('REPAIR RESTART!'); }, 650);
     }
   }
 
-  function respawnAfterFall() {
-    player.hp -= 1;
-    sound('damage');
-    shake = 18;
-    if (player.hp <= 0) { setModeResult(false); return; }
+  function respawnAtCheckpoint(message) {
+    player.hp = 3;
+    player.dead = false;
     player.x = player.spawnX;
     player.y = player.spawnY;
     player.vx = 0;
     player.vy = 0;
     player.invincible = 1.8;
-    player.jumpCount = 0; player.spin = 0;
+    player.jumpCount = 0;
+    player.spin = 0;
     cameraX = player.spawnCamera;
-    say('落下！ チェックポイントから再開');
+    droplets = [];
+    say(message);
     updateHud();
+  }
+
+  function respawnAfterFall() {
+    sound('damage');
+    shake = 18;
+    respawnAtCheckpoint('落下！ チェックポイントから再開');
   }
 
   function updatePlayer(dt) {
@@ -379,19 +390,27 @@
       if(item.type==='toolbox') { player.boost=8; player.dash=100; }
       if(item.type==='fenicoin') { player.score+=3000; player.coins+=5; }
       if(item.type==='fire') player.invincible=8;
-      say(labels[item.type]); sound(item.type==='fenicoin'?'coin':'item');
+      say(labels[item.type]); sound(item.type);
       for(let i=0;i<20;i+=1) sparks.push({x:item.x,y:item.y,vx:(Math.random()-.5)*300,vy:(Math.random()-.5)*300,life:.7,size:4});
     }
-    if (!checkpoint.active && player.x > checkpoint.x) {
-      checkpoint.active = true; player.spawnX = checkpoint.x + 35; player.spawnY = FLOOR_Y - 55 - PLAYER_H; player.spawnCamera = Math.max(0, cameraX);
-      player.score += 1000; say('CHECKPOINT!'); sound('checkpoint');
+    for (const checkpoint of checkpoints) {
+      const checkpointHitbox = { x: checkpoint.x - 12, y: checkpoint.y, w: 92, h: 75 };
+      if (checkpoint.active || !overlap(player, checkpointHitbox)) continue;
+      checkpoints.forEach((point) => { if (point.x <= checkpoint.x) point.active = true; });
+      player.spawnX = checkpoint.x + 35;
+      player.spawnY = checkpoint.y + 70 - PLAYER_H;
+      player.spawnCamera = Math.max(0, cameraX);
+      player.score += 1000;
+      say('CHECK POINT');
+      sound('checkpoint');
+      for (let i = 0; i < 28; i += 1) sparks.push({ x: checkpoint.x + 35, y: checkpoint.y + 20, vx: (Math.random() - .5) * 260, vy: (Math.random() - .5) * 260, life: .8, size: 4 });
     }
     if (player.x + player.w > goal.x && !player.clearTime) {
       player.clearTime = .001; player.vx = 0; player.score += Math.ceil(remainingTime) * 25; sound('goal');
       say('STAGE CLEAR!!');
       for(let i=0;i<100;i+=1) confetti.push({x:cameraX+Math.random()*1280,y:-Math.random()*500,vx:(Math.random()-.5)*100,vy:100+Math.random()*180,life:4,color:['#ff3b20','#ffd338','#41d9ec','#fff'][i%4]});
     }
-    if (player.clearTime) { player.clearTime += dt; player.state='clear'; player.x += ((cameraX+640-player.w/2)-player.x)*Math.min(1,dt*3); player.y += Math.sin(player.clearTime*9)*50*dt; player.spin += dt*5; if(player.clearTime>2.6) setModeResult(true); }
+    if (player.clearTime) { player.clearTime += dt; player.state='clear'; player.x += ((cameraX + viewportWidth / 2 - player.w / 2) - player.x) * Math.min(1, dt * 3); player.y += Math.sin(player.clearTime*9)*50*dt; player.spin += dt*5; if(player.clearTime>2.6) setModeResult(true); }
     dust.forEach((particle) => { particle.x += particle.vx * dt; particle.y += particle.vy * dt; particle.vy += 130 * dt; particle.life -= dt; });
     dust = dust.filter((particle) => particle.life > 0);
     sparks.forEach((p) => { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 420*dt; p.life -= dt; });
@@ -408,7 +427,7 @@
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
     if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
-    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - 1280, player.x - (player.facing > 0 ? 350 : 650)));
+    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x - viewportWidth * (player.facing > 0 ? .34 : .56)));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * 7);
     shake *= Math.pow(.02, dt);
     landingShake *= Math.pow(.01, dt);
@@ -464,7 +483,7 @@
     drawScenery();
     coins.forEach(drawCoin);
     items.forEach(drawItem);
-    drawCheckpoint();
+    checkpoints.forEach(drawCheckpoint);
     drawGoal();
     enemies.forEach(drawEnemy);
     droplets.forEach(drawDroplet);
@@ -522,10 +541,13 @@
     ctx.shadowBlur=0; ctx.font='26px Arial'; ctx.textAlign='center'; ctx.fillText(symbols[item.type],0,9); ctx.restore();
   }
 
-  function drawCheckpoint() {
+  function drawCheckpoint(checkpoint) {
+    ctx.save();
+    if (checkpoint.active) { ctx.shadowColor = '#65ff93'; ctx.shadowBlur = 24; }
     ctx.fillStyle = '#6d4930'; ctx.fillRect(checkpoint.x, checkpoint.y, 8, 70);
     ctx.fillStyle = checkpoint.active ? '#51e77f' : '#e8eef0'; ctx.beginPath(); ctx.moveTo(checkpoint.x + 8, checkpoint.y); ctx.lineTo(checkpoint.x + 70, checkpoint.y + 18); ctx.lineTo(checkpoint.x + 8, checkpoint.y + 36); ctx.fill();
     ctx.fillStyle = '#143044'; ctx.font = 'bold 11px Arial'; ctx.fillText('CHECK', checkpoint.x + 37, checkpoint.y + 21);
+    ctx.restore();
   }
 
   function drawGoal() {
@@ -539,8 +561,10 @@
     const stride = Math.sin(player.anim); const speed = Math.abs(player.vx);
     const bob = player.grounded && speed > 25 ? -Math.abs(stride) * 6 : Math.sin(player.anim) * 1.5;
     const tilt = player.invincible > 0 ? Math.sin(elapsed*35)*.12 : player.state === 'dash' ? .16*facing : player.state === 'walk' ? .07*facing : player.state === 'fall' ? .05*facing : 0;
-    const squash = player.state === 'land' ? .88 : 1;
-    ctx.save(); ctx.globalAlpha *= alpha; if(player.state==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing,squash);
+    const squash = player.state === 'land' ? .88 : player.state === 'doubleJump' ? 1.1 : 1;
+    const stretchX = player.state === 'jump' ? .92 : player.state === 'doubleJump' ? .88 : 1;
+    const celebration = player.state === 'clear' ? 1 + Math.sin(player.clearTime * 10) * .09 : 1;
+    ctx.save(); ctx.globalAlpha *= alpha; if(player.state==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing * stretchX * celebration,squash * celebration);
     if (feniImage.complete && feniImage.naturalWidth) ctx.drawImage(feniImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
     ctx.restore();
   }
@@ -629,6 +653,5 @@
 
   resize();
   resetGame();
-  window.RepairHeroSound?.music('title');
   if (!animationFrame) animationFrame = requestAnimationFrame(loop);
 })();

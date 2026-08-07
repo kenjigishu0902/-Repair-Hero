@@ -1,37 +1,95 @@
 (() => {
   'use strict';
+
+  const TRACK_URLS = { title: './title.mp3', game: './bgm.mp3' };
+  const tracks = Object.fromEntries(Object.entries(TRACK_URLS).map(([name, url]) => {
+    const audio = new Audio();
+    audio.src = url;
+    audio.loop = true;
+    audio.preload = 'auto';
+    audio.volume = .32;
+    return [name, audio];
+  }));
   let context;
-  const tracks = {
-    title: new Audio('assets/sounds/title.mp3'),
-    game: new Audio('assets/sounds/bgm.mp3')
-  };
-  Object.values(tracks).forEach((track) => { track.loop = true; track.preload = 'auto'; track.volume = .32; });
-  let currentTrack = null;
+  let currentName = null;
+  let synthTimer = 0;
+  let synthStep = 0;
+
   const tones = {
-    start:[330,440,.18], jump:[470,650,.11], doubleJump:[620,1040,.2], dash:[180,480,.12],
-    coin:[930,1250,.08], item:[520,920,.18], stomp:[190,130,.12], damage:[120,70,.25],
-    checkpoint:[620,880,.25], goal:[520,980,.32], clear:[760,1250,.5], gameover:[170,65,.6]
+    start: [330, 440, .18], jump: [470, 650, .11], doubleJump: [620, 1040, .2], dash: [180, 480, .08],
+    coin: [930, 1250, .08], battery: [420, 720, .18], screen: [700, 1080, .2], toolbox: [210, 620, .22],
+    fenicoin: [880, 1500, .3], fire: [340, 980, .3], stomp: [190, 130, .12], damage: [120, 70, .25],
+    checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6]
   };
+
   function unlock() {
     const AudioContext = window.AudioContext || window.webkitAudioContext;
-    if (AudioContext) { context ||= new AudioContext(); if (context.state === 'suspended') context.resume(); }
+    if (!AudioContext) return;
+    context ||= new AudioContext();
+    if (context.state === 'suspended') context.resume();
   }
+
+  function note(frequency, duration = .1, volume = .025, type = 'square') {
+    if (!context || context.state !== 'running') return;
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = type;
+    oscillator.frequency.value = frequency;
+    gain.gain.setValueAtTime(volume, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + duration);
+  }
+
+  function startSynthMusic(name) {
+    clearInterval(synthTimer);
+    if (!name) return;
+    const melodies = {
+      title: [262, 330, 392, 523, 392, 330, 294, 392],
+      game: [330, 392, 440, 392, 523, 440, 392, 294]
+    };
+    synthStep = 0;
+    synthTimer = window.setInterval(() => {
+      if (currentName !== name) return;
+      const melody = melodies[name];
+      note(melody[synthStep % melody.length], .16, .018, 'triangle');
+      if (synthStep % 2 === 0) note(name === 'game' ? 110 : 131, .2, .012, 'sine');
+      synthStep += 1;
+    }, name === 'game' ? 190 : 260);
+  }
+
   function music(name) {
     unlock();
-    Object.entries(tracks).forEach(([key, track]) => { if (key !== name) { track.pause(); track.currentTime = 0; } });
-    currentTrack = name && tracks[name] ? tracks[name] : null;
-    if (currentTrack) currentTrack.play().catch(() => {});
+    clearInterval(synthTimer);
+    Object.values(tracks).forEach((track) => { track.pause(); track.currentTime = 0; });
+    currentName = name && tracks[name] ? name : null;
+    if (!currentName) return;
+    const track = tracks[currentName];
+    track.currentTime = 0;
+    track.play().catch(() => startSynthMusic(currentName));
+    track.addEventListener('error', () => { if (currentName === name) startSynthMusic(name); }, { once: true });
   }
+
   function play(name) {
-    unlock(); if (!context) return;
-    const [from,to,duration] = tones[name] || [220,280,.1];
-    const oscillator = context.createOscillator(); const gain = context.createGain();
+    unlock();
+    if (!context) return;
+    const [from, to, duration] = tones[name] || [220, 280, .1];
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
     oscillator.type = name === 'damage' || name === 'gameover' ? 'sawtooth' : name === 'doubleJump' ? 'triangle' : 'square';
-    oscillator.frequency.setValueAtTime(from,context.currentTime); oscillator.frequency.exponentialRampToValueAtTime(to,context.currentTime+duration);
-    gain.gain.setValueAtTime(name === 'doubleJump' ? .06 : .035,context.currentTime); gain.gain.exponentialRampToValueAtTime(.001,context.currentTime+duration);
-    oscillator.connect(gain).connect(context.destination); oscillator.start(); oscillator.stop(context.currentTime+duration);
+    oscillator.frequency.setValueAtTime(from, context.currentTime);
+    oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
+    gain.gain.setValueAtTime(name === 'doubleJump' ? .06 : .035, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
+    oscillator.connect(gain).connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + duration);
   }
+
   window.RepairHeroSound = { play, music, unlock };
-  document.addEventListener('pointerdown', unlock, { once:true });
-  document.addEventListener('keydown', unlock, { once:true });
+  const beginTitleAudio = () => { unlock(); if (!currentName) music('title'); };
+  document.addEventListener('pointerdown', beginTitleAudio, { once: true });
+  document.addEventListener('touchstart', beginTitleAudio, { once: true, passive: true });
+  document.addEventListener('keydown', beginTitleAudio, { once: true });
 })();
