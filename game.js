@@ -6,7 +6,8 @@
   const $ = (selector) => document.querySelector(selector);
   const ui = {
     title: $('#title'), result: $('#result'), hud: $('#hud'), touch: $('#touch'), pause: $('#pause'),
-    hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), dashGauge: $('#dashGauge'), notice: $('#notice')
+    hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), dashGauge: $('#dashGauge'), notice: $('#notice'),
+    modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), transformFlash: $('#transformFlash')
   };
 
   const WORLD_WIDTH = 7600;
@@ -14,8 +15,13 @@
   const PLAYER_W = 72;
   const PLAYER_H = 112;
   const MAX_JUMPS = 2;
-  const feniImage = new Image();
-  feniImage.src = './feni.png';
+  const playerImages = {};
+  for (const [name, source] of Object.entries({ normal: './feni.png', battery: './feni_battery.png', lcd: './feni_lcd.png', king: './feni_king.png' })) {
+    playerImages[name] = new Image();
+    playerImages[name].src = source;
+  }
+  const MODE_DURATION = 10;
+  const MODE_NAMES = { battery: 'BATTERY MODE', lcd: 'LCD MODE', king: 'KING MODE' };
   const GRAVITY = 1800;
   const MAX_FALL = 920;
   const START_TIME = 150;
@@ -48,6 +54,12 @@
   let remainingTime;
   let items;
   let confetti;
+  let transformItems;
+  let modeParticles;
+  let playerMode = 'normal';
+  let modeTimer = 0;
+  let slowMotion = 0;
+  let flightSoundTimer = 0;
 
   const staticPlatforms = [
     { x: 0, y: FLOOR_Y, w: 720, h: 130 },
@@ -88,6 +100,10 @@
     ['fire', 5180, 385], ['fenicoin', 6260, 300]
   ];
 
+  const transformBlueprints = [
+    [780, 455], [1510, 350], [2390, 500], [3760, 295], [4825, 475], [6050, 305], [6740, 370]
+  ];
+
   const coinBlueprints = [
     [360, 520], [450, 520], [540, 520], [900, 520], [1080, 415], [1160, 415],
     [1390, 355], [1470, 355], [1780, 495], [1900, 370], [1980, 370], [2200, 290],
@@ -122,12 +138,15 @@
     Object.keys(input).forEach((key) => { input[key] = false; });
     player = { x: 150, y: FLOOR_Y - PLAYER_H, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0,
       grounded: true, hp: 3, coins: 0, score: 0, invincible: 0, state: 'idle', anim: 0,
-      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, dead: false, dash: 100, boost: 0, clearTime: 0 };
+      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, checkpointHp: 3, checkpointCoins: 0, checkpointScore: 0, dead: false, dash: 100, boost: 0, clearTime: 0 };
     enemies = enemyBlueprints.map(makeEnemy);
     droplets = [];
     coins = coinBlueprints.map(([x, y]) => ({ x, y, collected: false, phase: x / 30 }));
     items = itemBlueprints.map(([type,x,y]) => ({ type,x,y,collected:false,phase:x/40 }));
     confetti = [];
+    transformItems = transformBlueprints.map(([x, y]) => ({ x, y, w: 42, h: 42, collected: false, phase: x / 50 }));
+    modeParticles = [];
+    playerMode = 'normal'; modeTimer = 0; slowMotion = 0; flightSoundTimer = 0;
     dust = [];
     sparks = [];
     afterimages = [];
@@ -159,12 +178,14 @@
     ui.hud.classList.remove('hidden');
     ui.touch.classList.remove('hidden');
     ui.pause.classList.remove('hidden');
+    ui.modeHud.classList.add('hidden');
     say('STAGE 1　スマホ修理商店街');
     window.RepairHeroSound?.music('game');
     sound('start');
   }
 
   function setModeResult(cleared) {
+    clearMode(false);
     mode = cleared ? 'clear' : 'gameover';
     window.RepairHeroSound?.music(null);
     ui.hud.classList.add('hidden');
@@ -227,9 +248,66 @@
     }
   }
 
+  function scoreValue(points) { return playerMode === 'lcd' ? points * 2 : points; }
+
+  function clearMode(playSound = true) {
+    if (playerMode === 'normal') return;
+    playerMode = 'normal';
+    modeTimer = 0;
+    flightSoundTimer = 0;
+    modeParticles = [];
+    ui.modeHud.className = 'mode-hud hidden';
+    if (playSound) { sound('transformEnd'); say('NORMAL MODE'); }
+  }
+
+  function emitModeParticles(modeName, amount) {
+    const colors = { battery: ['#54ff72', '#d8ff76'], lcd: ['#48eaff', '#ffffff'], king: ['#ffd338', '#ff8a20', '#fff7b0'] }[modeName];
+    for (let i = 0; i < amount; i += 1) modeParticles.push({
+      x: player.x + player.w / 2 + (Math.random() - .5) * 80, y: player.y + player.h / 2 + (Math.random() - .5) * 110,
+      vx: (Math.random() - .5) * 150, vy: -30 - Math.random() * 120, life: .45 + Math.random() * .65,
+      size: 2 + Math.random() * (modeName === 'king' ? 7 : 4), color: colors[i % colors.length], digital: modeName === 'lcd'
+    });
+  }
+
+  function applyMode(nextMode) {
+    clearMode(false);
+    playerMode = nextMode;
+    modeTimer = MODE_DURATION;
+    slowMotion = .3;
+    if (nextMode === 'battery') player.hp = Math.min(3, player.hp + 1);
+    const subtitles = { battery: 'HP RECOVERY!', lcd: 'SCORE ×2!', king: 'FLY!' };
+    say(`${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
+    ui.modeHud.className = `mode-hud ${nextMode}`;
+    ui.transformFlash.className = `transform-flash ${nextMode}`;
+    void ui.transformFlash.offsetWidth;
+    ui.transformFlash.classList.add('show');
+    sound('transformItem'); sound(`${nextMode}Mode`);
+    emitModeParticles(nextMode, nextMode === 'king' ? 70 : 38);
+    updateHud();
+  }
+
+  function collectTransformItem(item) {
+    item.collected = true;
+    player.score += scoreValue(250);
+    const choices = ['battery', 'lcd', 'king'];
+    applyMode(choices[Math.floor(Math.random() * choices.length)]);
+  }
+
+  function updateModeTimer(dt) {
+    if (playerMode === 'normal') return;
+    modeTimer = Math.max(0, modeTimer - dt);
+    const rate = playerMode === 'king' ? 18 : 10;
+    if (Math.floor(elapsed * rate) !== Math.floor((elapsed - dt) * rate)) emitModeParticles(playerMode, playerMode === 'king' ? 3 : 1);
+    if (playerMode === 'king' && input.jump) {
+      flightSoundTimer -= dt;
+      if (flightSoundTimer <= 0) { sound('kingFlight'); flightSoundTimer = .55; }
+    }
+    if (modeTimer <= 0) clearMode(true);
+  }
+
   function hurt(sourceX) {
-    if (player.invincible > 0 || mode !== 'playing') return;
-    player.hp -= 1;
+    if (player.invincible > 0 || mode !== 'playing' || playerMode === 'king') return;
+    player.hp -= playerMode === 'battery' ? .5 : 1;
     player.invincible = 1.6;
     player.vx = player.x < sourceX ? -290 : 290;
     player.vy = -420;
@@ -245,7 +323,10 @@
   }
 
   function respawnAtCheckpoint(message) {
-    player.hp = 3;
+    clearMode(false);
+    player.hp = player.checkpointHp;
+    player.coins = player.checkpointCoins;
+    player.score = player.checkpointScore;
     player.dead = false;
     player.x = player.spawnX;
     player.y = player.spawnY;
@@ -277,14 +358,20 @@
     player.boost = Math.max(0, player.boost - dt);
     const canDash = dashing && player.dash > 0;
     player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -38 : 24) * dt));
-    const targetSpeed = direction * (canDash ? (player.boost ? 610 : 455) : 245);
+    const speedScale = playerMode === 'battery' ? 1.16 : 1;
+    const targetSpeed = direction * (canDash ? (player.boost ? 610 : playerMode === 'king' ? 585 : 455) : 245 * speedScale);
     if (canDash && Math.floor(elapsed * 9) !== Math.floor((elapsed-dt)*9)) sound('dash');
     const acceleration = player.grounded ? 1900 : 1050;
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
     if (!direction && player.grounded) player.vx *= Math.pow(.0008, dt);
     if (direction) player.facing = direction;
 
-    if (input.jump && !player.jumpHeld && player.jumpCount < MAX_JUMPS) {
+    if (playerMode === 'king') {
+      player.jumpHeld = input.jump;
+      player.grounded = false;
+      player.vy += ((input.jump ? -520 : 105) - player.vy) * Math.min(1, dt * (input.jump ? 5 : 2.2));
+      player.vy = Math.max(-390, Math.min(115, player.vy));
+    } else if (input.jump && !player.jumpHeld && player.jumpCount < MAX_JUMPS) {
       player.jumpCount += 1;
       player.vy = player.jumpCount === 2 ? -720 : -650;
       player.grounded = false;
@@ -295,12 +382,12 @@
         sound('doubleJump');
       } else { spawnDust(player.x + player.w / 2, player.y + player.h, 5); sound('jump'); }
     }
-    if (!input.jump) player.jumpHeld = false;
-    if (!input.jump && player.vy < -220) player.vy += GRAVITY * 1.35 * dt;
+    if (playerMode !== 'king' && !input.jump) player.jumpHeld = false;
+    if (playerMode !== 'king' && !input.jump && player.vy < -220) player.vy += GRAVITY * 1.35 * dt;
     if (player.spin > 0) player.spin = Math.max(0, player.spin - dt * 11);
 
     const wasGrounded = player.grounded;
-    player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
+    if (playerMode !== 'king') player.vy = Math.min(MAX_FALL, player.vy + GRAVITY * dt);
     moveAndCollide(player, dt, true);
     player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
     if (!wasGrounded && player.grounded) {
@@ -313,6 +400,7 @@
         spawnDust(player.x + player.w / 2,pad.y,10); sound('jump'); say('SUPER JUMP!');
       }
     }
+    if (playerMode === 'king' && player.y > FLOOR_Y - player.h + 35) { player.y = FLOOR_Y - player.h + 35; player.vy = Math.min(0, player.vy); }
     if (player.y > 790) respawnAfterFall();
 
     const speed = Math.abs(player.vx);
@@ -353,7 +441,7 @@
       if (overlap(player, enemy) && player.invincible <= 0) {
         const playerBottom = player.y + player.h;
         if (player.vy > 120 && playerBottom - enemy.y < 32) {
-          enemy.alive = false; enemy.squish = .45; player.vy = -410; player.score += 500;
+          enemy.alive = false; enemy.squish = .45; player.vy = -410; player.score += scoreValue(500);
           spawnDust(enemy.x + enemy.w / 2, enemy.y + enemy.h, 9); sound('stomp');
         } else hurt(enemy.x + enemy.w / 2);
       }
@@ -378,17 +466,21 @@
       coin.phase += dt * 5;
       const hitbox = { x: coin.x - 13, y: coin.y - 13, w: 26, h: 26 };
       if (!coin.collected && overlap(player, hitbox)) {
-        coin.collected = true; player.coins += 1; player.score += 100; sound('coin'); updateHud();
+        coin.collected = true; player.coins += 1; player.score += scoreValue(100); sound('coin'); updateHud();
       }
+    }
+    for (const item of transformItems) {
+      item.phase += dt * 3;
+      if (!item.collected && overlap(player, { x: item.x - 25, y: item.y - 25, w: 50, h: 50 })) collectTransformItem(item);
     }
     for (const item of items) {
       item.phase += dt * 4;
       if (item.collected || !overlap(player,{x:item.x-18,y:item.y-18,w:36,h:36})) continue;
-      item.collected=true; const labels={battery:'HP RECOVER',screen:'LCD +1000',toolbox:'DASH BOOST',fenicoin:'FENI COIN +3000',fire:'INVINCIBLE'};
+      item.collected=true; player.score += scoreValue(250); const labels={battery:'HP RECOVER',screen:'LCD +1000',toolbox:'DASH BOOST',fenicoin:'FENI COIN +3000',fire:'INVINCIBLE'};
       if(item.type==='battery') player.hp=Math.min(3,player.hp+1);
-      if(item.type==='screen') player.score+=1000;
+      if(item.type==='screen') player.score+=scoreValue(1000);
       if(item.type==='toolbox') { player.boost=8; player.dash=100; }
-      if(item.type==='fenicoin') { player.score+=3000; player.coins+=5; }
+      if(item.type==='fenicoin') { player.score+=scoreValue(3000); player.coins+=5; }
       if(item.type==='fire') player.invincible=8;
       say(labels[item.type]); sound(item.type);
       for(let i=0;i<20;i+=1) sparks.push({x:item.x,y:item.y,vx:(Math.random()-.5)*300,vy:(Math.random()-.5)*300,life:.7,size:4});
@@ -400,7 +492,8 @@
       player.spawnX = checkpoint.x + 35;
       player.spawnY = checkpoint.y + 70 - PLAYER_H;
       player.spawnCamera = Math.max(0, cameraX);
-      player.score += 1000;
+      player.score += scoreValue(1000);
+      player.checkpointHp = player.hp; player.checkpointCoins = player.coins; player.checkpointScore = player.score;
       say('CHECK POINT');
       sound('checkpoint');
       for (let i = 0; i < 28; i += 1) sparks.push({ x: checkpoint.x + 35, y: checkpoint.y + 20, vx: (Math.random() - .5) * 260, vy: (Math.random() - .5) * 260, life: .8, size: 4 });
@@ -415,6 +508,8 @@
     dust = dust.filter((particle) => particle.life > 0);
     sparks.forEach((p) => { p.x += p.vx*dt; p.y += p.vy*dt; p.vy += 420*dt; p.life -= dt; });
     sparks = sparks.filter((p) => p.life > 0);
+    modeParticles.forEach((p) => { p.x += p.vx * dt; p.y += p.vy * dt; p.life -= dt; });
+    modeParticles = modeParticles.filter((p) => p.life > 0);
     afterimages.forEach((ghost) => { ghost.life -= dt; });
     afterimages = afterimages.filter((ghost) => ghost.life > 0);
     confetti.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;}); confetti=confetti.filter(p=>p.life>0);
@@ -422,7 +517,9 @@
 
   function update(dt) {
     if (mode !== 'playing' || paused) return;
+    if (slowMotion > 0) { slowMotion = Math.max(0, slowMotion - dt); dt *= .25; }
     elapsed += dt;
+    updateModeTimer(dt);
     remainingTime = Math.max(0, remainingTime - dt);
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
@@ -436,11 +533,12 @@
 
   function updateHud() {
     if (!player) return;
-    ui.hearts.textContent = `${'♥ '.repeat(Math.max(0, player.hp))}${'♡ '.repeat(Math.max(0, 3 - player.hp))}`;
+    ui.hearts.textContent = `${'♥ '.repeat(Math.max(0, Math.ceil(player.hp)))}${'♡ '.repeat(Math.max(0, 3 - Math.ceil(player.hp)))}`;
     ui.coins.textContent = String(player.coins).padStart(2, '0');
     ui.score.textContent = String(player.score).padStart(6, '0');
     ui.timer.textContent = String(Math.ceil(remainingTime)).padStart(3, '0');
     ui.dashGauge.value = player.dash;
+    if (playerMode !== 'normal') { ui.modeTimer.textContent = `${MODE_NAMES[playerMode]}  ${Math.ceil(modeTimer)}`; ui.modeHud.classList.remove('hidden'); }
   }
 
   function drawRoundedRect(x, y, w, h, radius) {
@@ -483,6 +581,7 @@
     drawScenery();
     coins.forEach(drawCoin);
     items.forEach(drawItem);
+    transformItems.forEach(drawTransformItem);
     checkpoints.forEach(drawCheckpoint);
     drawGoal();
     enemies.forEach(drawEnemy);
@@ -493,6 +592,8 @@
     sparks.forEach((p) => { ctx.globalAlpha=p.life*1.7; ctx.fillStyle=Math.random()>.5?'#ffec48':'#ff5a1f'; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill(); });
     ctx.globalAlpha = 1;
     confetti.forEach(p=>{ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,8,14);});
+    modeParticles.forEach(p => { ctx.globalAlpha = Math.min(1, p.life * 2); ctx.fillStyle = p.color; if (p.digital) ctx.fillRect(p.x, p.y, p.size * 2.2, p.size); else { ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); } });
+    ctx.globalAlpha = 1;
     drawPlayer();
     ctx.restore();
   }
@@ -541,6 +642,14 @@
     ctx.shadowBlur=0; ctx.font='26px Arial'; ctx.textAlign='center'; ctx.fillText(symbols[item.type],0,9); ctx.restore();
   }
 
+  function drawTransformItem(item) {
+    if (item.collected) return;
+    ctx.save(); ctx.translate(item.x, item.y + Math.sin(item.phase) * 8); ctx.rotate(elapsed * 1.8);
+    ctx.shadowColor = '#ff6cff'; ctx.shadowBlur = 24; ctx.fillStyle = '#fff'; ctx.strokeStyle = '#913cff'; ctx.lineWidth = 5;
+    ctx.beginPath(); for (let i = 0; i < 8; i += 1) { const a = i * Math.PI / 4; const r = i % 2 ? 14 : 24; ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r); } ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.rotate(-elapsed * 1.8); ctx.fillStyle = '#5b177d'; ctx.font = 'bold 20px Arial'; ctx.textAlign = 'center'; ctx.fillText('?', 0, 7); ctx.restore();
+  }
+
   function drawCheckpoint(checkpoint) {
     ctx.save();
     if (checkpoint.active) { ctx.shadowColor = '#65ff93'; ctx.shadowBlur = 24; }
@@ -565,7 +674,8 @@
     const stretchX = player.state === 'jump' ? .92 : player.state === 'doubleJump' ? .88 : 1;
     const celebration = player.state === 'clear' ? 1 + Math.sin(player.clearTime * 10) * .09 : 1;
     ctx.save(); ctx.globalAlpha *= alpha; if(player.state==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing * stretchX * celebration,squash * celebration);
-    if (feniImage.complete && feniImage.naturalWidth) ctx.drawImage(feniImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
+    const currentImage = playerImages[playerMode];
+    if (currentImage.complete && currentImage.naturalWidth) ctx.drawImage(currentImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
     ctx.restore();
   }
 
@@ -635,8 +745,6 @@
     if (window.PointerEvent) {
       button.addEventListener('pointerdown', press); button.addEventListener('pointerup', release);
       button.addEventListener('pointercancel', release); button.addEventListener('lostpointercapture', release);
-      button.addEventListener('pointerenter', (event) => { if (event.buttons) press(event); });
-      button.addEventListener('pointerleave', (event) => { if (event.buttons) release(event); });
     } else {
       button.addEventListener('touchstart', press, { passive: false });
       button.addEventListener('touchend', release, { passive: false });

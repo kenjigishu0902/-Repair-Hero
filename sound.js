@@ -19,7 +19,9 @@
     start: [330, 440, .18], jump: [470, 650, .11], doubleJump: [620, 1040, .2], dash: [180, 480, .08],
     coin: [930, 1250, .08], battery: [420, 720, .18], screen: [700, 1080, .2], toolbox: [210, 620, .22],
     fenicoin: [880, 1500, .3], fire: [340, 980, .3], stomp: [190, 130, .12], damage: [120, 70, .25],
-    checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6]
+    checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6],
+    transformItem: [280, 920, .18], batteryMode: [330, 740, .42], lcdMode: [1050, 480, .38],
+    kingMode: [260, 1480, .65], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12]
   };
 
   function unlock() {
@@ -77,7 +79,7 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' ? 'sawtooth' : name === 'doubleJump' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
     gain.gain.setValueAtTime(name === 'doubleJump' ? .06 : .035, context.currentTime);
@@ -85,6 +87,15 @@
     oscillator.connect(gain).connect(context.destination);
     oscillator.start();
     oscillator.stop(context.currentTime + duration);
+    if (name === 'kingMode') {
+      [523, 659, 784, 1047].forEach((frequency, index) => {
+        window.setTimeout(() => note(frequency, .25, .045, 'triangle'), index * 90);
+      });
+    } else if (name === 'lcdMode') {
+      window.setTimeout(() => note(1320, .12, .03, 'square'), 110);
+    } else if (name === 'batteryMode') {
+      window.setTimeout(() => note(880, .2, .035, 'sine'), 130);
+    }
   }
 
   window.RepairHeroSound = { play, music, unlock };
