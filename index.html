@@ -19,6 +19,7 @@
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
       <div class="dash-meter"><span>DASH</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
+      <div id="modeHud" class="mode-hud hidden"><span>RANDOM TRANSFORM</span><b id="modeTimer">NORMAL</b></div>
     </header>
 
     <section id="title" class="screen title">
@@ -42,6 +43,7 @@
     </section>
 
     <div id="notice" class="notice" aria-live="polite"></div>
+    <div id="transformFlash" class="transform-flash" aria-hidden="true"></div>
     <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
 
     <nav id="touch" class="touch hidden" aria-label="タッチ操作">
