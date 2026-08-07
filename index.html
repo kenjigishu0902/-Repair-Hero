@@ -18,15 +18,16 @@
       <div><span>COIN</span><b>● <i id="coins">00</i></b></div>
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
+      <div class="dash-meter"><span>DASH</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
 
     <section id="title" class="screen title">
       <div class="title-badge">STAGE 1</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
-      <div class="title-feni"><img src="assets/images/fenichan.svg" alt="フェニちゃん"><span>フェニちゃん</span></div>
+      <div class="title-feni"><img src="assets/images/fenichan.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
       <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">A / ←・D / → 移動　SPACE ジャンプ　SHIFT＋方向 ダッシュ</p>
+      <p class="help">画面ボタン：DASH ←　JUMP（2回）　DASH →</p>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -34,8 +35,8 @@
         <p id="resultKicker">STAGE CLEAR!</p>
         <h2 id="resultTitle">修理完了！</h2>
         <p id="resultStats"></p>
-        <button id="retry">もう一度</button>
-        <button id="backTitle" class="secondary">タイトルへ</button>
+        <button id="next">NEXT</button>
+        <button id="retry" class="secondary">RETRY</button>
       </div>
     </section>
 
@@ -43,10 +44,6 @@
     <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
 
     <nav id="touch" class="touch hidden" aria-label="タッチ操作">
-      <div class="move-pad">
-        <button data-input="left" aria-label="左へ移動">←</button>
-        <button data-input="right" aria-label="右へ移動">→</button>
-      </div>
       <div class="action-pad">
         <button data-input="dashLeft" class="dash" aria-label="左へダッシュ">DASH ←</button>
         <button data-input="jump" class="jump">JUMP</button>
