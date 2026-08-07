@@ -2,6 +2,7 @@
   'use strict';
 
   const canvas = document.querySelector('#game');
+  if (navigator.maxTouchPoints > 0) document.body.classList.add('touch-device');
   const ctx = canvas.getContext('2d', { alpha: false });
   const $ = (selector) => document.querySelector(selector);
   const ui = {
@@ -31,6 +32,9 @@
   let dpr = 1;
   let scale = 1;
   let viewportWidth = 1280;
+  let viewportHeight = 720;
+  let cameraY = 0;
+  let portrait = false;
   let offsetX = 0;
   let offsetY = 0;
   let mode = 'title';
@@ -60,6 +64,9 @@
   let modeTimer = 0;
   let slowMotion = 0;
   let flightSoundTimer = 0;
+  let fragilePlatforms;
+  let hazards;
+  let fallingHazards;
 
   const staticPlatforms = [
     { x: 0, y: FLOOR_Y, w: 720, h: 130 },
@@ -114,17 +121,21 @@
   ];
 
   function resize() {
-    width = innerWidth;
-    height = innerHeight;
+    const view = window.visualViewport;
+    width = Math.round(view?.width || innerWidth);
+    height = Math.round(view?.height || innerHeight);
+    portrait = height > width;
     dpr = Math.min(devicePixelRatio || 1, 2);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    scale = height / 720;
+    // Portrait fits the complete 720-unit playfield; landscape favors forward visibility.
+    scale = portrait ? Math.max(.48, Math.min(width / 720, height / 760)) : height / 720;
     viewportWidth = width / scale;
-    offsetX = 0;
-    offsetY = 0;
+    viewportHeight = height / scale;
+    offsetX = Math.max(0, (width - viewportWidth * scale) / 2);
+    offsetY = portrait ? Math.max(0, (height - 720 * scale) / 2) : 0;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -150,6 +161,13 @@
     dust = [];
     sparks = [];
     afterimages = [];
+    fragilePlatforms = [
+      { x: 1260, y: 505, w: 105, h: 18, kind: 'vanish', timer: 0, active: true },
+      { x: 2960, y: 395, w: 92, h: 18, kind: 'crumble', timer: 0, active: true },
+      { x: 5350, y: 385, w: 90, h: 18, kind: 'crumble', timer: 0, active: true }
+    ];
+    hazards = [{x:690,y:590,w:30,h:20},{x:1615,y:590,w:90,h:20},{x:3080,y:590,w:120,h:20},{x:4760,y:535,w:120,h:20},{x:6460,y:590,w:95,h:20}];
+    fallingHazards = [{x:2700,y:90,baseY:90,w:28,h:34,vy:0,delay:1},{x:4550,y:70,baseY:70,w:34,h:40,vy:0,delay:2.2},{x:6710,y:60,baseY:60,w:32,h:38,vy:0,delay:1.4}];
     movingPlatforms = [
       { x: 735, y: 500, baseX: 735, baseY: 500, w: 105, h: 18, axis: 'x', range: 80, speed: 1.15, lastX: 735, lastY: 500 },
       { x: 3090, y: 475, baseX: 3090, baseY: 475, w: 105, h: 18, axis: 'y', range: 95, speed: .9, lastX: 3090, lastY: 475 },
@@ -220,23 +238,30 @@
 
   const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-  function allPlatforms() { return staticPlatforms.concat(movingPlatforms); }
+  function allPlatforms() { return staticPlatforms.concat(movingPlatforms, fragilePlatforms.filter((p) => p.active)); }
 
   function moveAndCollide(body, dt, isPlayer = false) {
-    const oldBottom = body.y + body.h;
-    body.x += body.vx * dt;
-    body.y += body.vy * dt;
+    // Small swept steps keep LCD-speed movement from crossing thin platforms.
+    const steps = Math.max(1, Math.ceil(Math.max(Math.abs(body.vx * dt), Math.abs(body.vy * dt)) / 18));
+    const step = dt / steps;
     body.grounded = false;
-    for (const platform of allPlatforms()) {
-      if (body.x + body.w <= platform.x || body.x >= platform.x + platform.w) continue;
-      if (body.vy >= 0 && oldBottom <= platform.y + 8 && body.y + body.h >= platform.y) {
-        body.y = platform.y - body.h;
-        body.vy = 0;
-        body.grounded = true;
-        if (isPlayer && movingPlatforms.includes(platform)) {
-          body.x += platform.x - platform.lastX;
-          body.y += platform.y - platform.lastY;
+    for (let n = 0; n < steps; n += 1) {
+      const oldX = body.x; const oldY = body.y; const oldBottom = oldY + body.h;
+      body.x += body.vx * step;
+      body.y += body.vy * step;
+      for (const platform of allPlatforms()) {
+        if (body.x + body.w <= platform.x || body.x >= platform.x + platform.w) continue;
+        if (body.vy >= 0 && oldBottom <= platform.y + 7 && body.y + body.h >= platform.y) {
+          body.y = platform.y - body.h; body.vy = 0; body.grounded = true;
+          if (isPlayer && movingPlatforms.includes(platform)) { body.x += platform.x-platform.lastX; body.y += platform.y-platform.lastY; }
+          if (isPlayer && fragilePlatforms.includes(platform) && !platform.timer) platform.timer = .001;
         }
+      }
+      for (const platform of allPlatforms()) {
+        const vertical = body.y + body.h > platform.y + 3 && body.y < platform.y + platform.h;
+        if (!vertical) continue;
+        if (body.vx > 0 && oldX + body.w <= platform.x && body.x + body.w > platform.x) { body.x=platform.x-body.w; body.vx=0; }
+        if (body.vx < 0 && oldX >= platform.x+platform.w && body.x < platform.x+platform.w) { body.x=platform.x+platform.w; body.vx=0; }
       }
     }
   }
@@ -275,8 +300,8 @@
     modeTimer = MODE_DURATION;
     slowMotion = .3;
     if (nextMode === 'battery') player.hp = Math.min(3, player.hp + 1);
-    const subtitles = { battery: 'HP RECOVERY!', lcd: 'SCORE ×2!', king: 'FLY!' };
-    say(`${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
+    const subtitles = { battery: 'HP RECOVERY!', lcd: 'HIGH SPEED!!  SCORE ×2!', king: 'FLY!' };
+    say(nextMode === 'lcd' ? 'LCD MODE!!\nHIGH SPEED!!\nSCORE ×2' : `${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
     ui.modeHud.className = `mode-hud ${nextMode}`;
     ui.transformFlash.className = `transform-flash ${nextMode}`;
     void ui.transformFlash.offsetWidth;
@@ -358,12 +383,13 @@
     player.boost = Math.max(0, player.boost - dt);
     const canDash = dashing && player.dash > 0;
     player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -38 : 24) * dt));
-    const speedScale = playerMode === 'battery' ? 1.16 : 1;
-    const targetSpeed = direction * (canDash ? (player.boost ? 610 : playerMode === 'king' ? 585 : 455) : 245 * speedScale);
+    const speedScale = playerMode === 'lcd' ? 1.7 : playerMode === 'battery' ? 1.16 : 1;
+    const dashSpeed = playerMode === 'lcd' ? 1000 : player.boost ? 610 : playerMode === 'king' ? 585 : 455;
+    const targetSpeed = direction * (canDash ? dashSpeed : 245 * speedScale);
     if (canDash && Math.floor(elapsed * 9) !== Math.floor((elapsed-dt)*9)) sound('dash');
-    const acceleration = player.grounded ? 1900 : 1050;
+    const acceleration = (player.grounded ? 1900 : 1050) * (playerMode === 'lcd' ? 1.75 : 1);
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
-    if (!direction && player.grounded) player.vx *= Math.pow(.0008, dt);
+    if (!direction && player.grounded) player.vx *= Math.pow(playerMode === 'lcd' ? .00002 : .0008, dt);
     if (direction) player.facing = direction;
 
     if (playerMode === 'king') {
@@ -409,8 +435,9 @@
     else if (canDash && speed > 300) player.state = 'dash';
     else if (speed > 30) player.state = 'walk';
     else player.state = 'idle';
-    player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 9 : 3);
+    player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 9 : 3) * (playerMode === 'lcd' ? 1.7 : 1);
     if (player.grounded && speed > 100 && Math.floor(player.anim * 2) !== Math.floor((player.anim - dt * 9) * 2)) spawnDust(player.x, player.y + player.h, dashing ? 3 : 1);
+    if (playerMode === 'lcd' && Math.floor(elapsed*16) !== Math.floor((elapsed-dt)*16)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.28,lcd:true});
     if (canDash) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*24) !== Math.floor((elapsed-dt)*24)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.2}); }
   }
 
@@ -462,6 +489,17 @@
       if (platform.axis === 'x') platform.x = platform.baseX + movement;
       else platform.y = platform.baseY + movement;
     }
+    for (const platform of fragilePlatforms) {
+      if (platform.kind === 'vanish') platform.active = Math.sin(elapsed * 1.7 + platform.x) > -.2;
+      if (platform.kind === 'crumble' && platform.timer) { platform.timer += dt; if (platform.timer > .65) platform.active = false; if (platform.timer > 3.2) { platform.timer=0; platform.active=true; } }
+    }
+    for (const rock of fallingHazards) {
+      rock.delay -= dt;
+      if (rock.delay <= 0) { rock.vy += 900*dt; rock.y += rock.vy*dt; }
+      if (overlap(player, rock)) hurt(rock.x);
+      if (rock.y > 730) { rock.y=rock.baseY; rock.vy=0; rock.delay=2.8; }
+    }
+    for (const spike of hazards) if (overlap(player, spike)) hurt(spike.x + spike.w/2);
     for (const coin of coins) {
       coin.phase += dt * 5;
       const hitbox = { x: coin.x - 13, y: coin.y - 13, w: 26, h: 26 };
@@ -524,8 +562,11 @@
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
     if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
-    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x - viewportWidth * (player.facing > 0 ? .34 : .56)));
-    cameraX += (targetCamera - cameraX) * Math.min(1, dt * 7);
+    const lead = playerMode === 'lcd' ? Math.min(viewportWidth*.18, player.vx*.22) : 0;
+    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x + lead - viewportWidth * (portrait ? .5 : player.facing > 0 ? .34 : .56)));
+    cameraX += (targetCamera - cameraX) * Math.min(1, dt * (playerMode === 'lcd' ? 10 : 7));
+    const targetCameraY = portrait ? Math.max(-90, Math.min(110, player.y - 390)) : 0;
+    cameraY += (targetCameraY - cameraY) * Math.min(1, dt * 5);
     shake *= Math.pow(.02, dt);
     landingShake *= Math.pow(.01, dt);
     updateHud();
@@ -548,7 +589,7 @@
   function drawBackground() {
     const sky = ctx.createLinearGradient(0, 0, 0, 720);
     sky.addColorStop(0, '#63cbe6'); sky.addColorStop(.65, '#d8f1dc'); sky.addColorStop(1, '#f7d794');
-    ctx.fillStyle = sky; ctx.fillRect(-50, -50, 1380, 820);
+    ctx.fillStyle = sky; ctx.fillRect(-50, -200, Math.max(1380, viewportWidth+100), Math.max(1100, viewportHeight+300));
     ctx.fillStyle = '#fff4';
     for (let i = 0; i < 7; i += 1) {
       const x = ((i * 260 - cameraX * .08) % 1820) - 180;
@@ -574,10 +615,12 @@
   }
 
   function drawWorld() {
-    ctx.save(); ctx.translate(-cameraX, 0);
+    ctx.save(); ctx.translate(-cameraX, -cameraY);
     for (const platform of staticPlatforms) drawPlatform(platform);
     for (const platform of movingPlatforms) { drawPlatform(platform, true); }
+    fragilePlatforms.forEach((platform) => { if (platform.active) drawPlatform(platform, true); });
     jumpPads.forEach(drawJumpPad);
+    drawHazards();
     drawScenery();
     coins.forEach(drawCoin);
     items.forEach(drawItem);
@@ -588,7 +631,7 @@
     droplets.forEach(drawDroplet);
     dust.forEach((particle) => { ctx.globalAlpha = particle.life * 1.8; ctx.fillStyle = '#dfc18a'; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, 7); ctx.fill(); });
     ctx.globalAlpha = 1;
-    afterimages.forEach((ghost) => drawFeniSprite(ghost.x, ghost.y, ghost.facing, 0, .18 * ghost.life / .2));
+    afterimages.forEach((ghost) => { if(ghost.lcd){ctx.save();ctx.globalCompositeOperation='screen';ctx.filter='hue-rotate(135deg) saturate(2)';} drawFeniSprite(ghost.x, ghost.y, ghost.facing, 0, .28 * ghost.life / .28); if(ghost.lcd)ctx.restore(); });
     sparks.forEach((p) => { ctx.globalAlpha=p.life*1.7; ctx.fillStyle=Math.random()>.5?'#ffec48':'#ff5a1f'; ctx.beginPath(); ctx.arc(p.x,p.y,p.size,0,7); ctx.fill(); });
     ctx.globalAlpha = 1;
     confetti.forEach(p=>{ctx.fillStyle=p.color;ctx.fillRect(p.x,p.y,8,14);});
@@ -610,6 +653,14 @@
   function drawJumpPad(pad) {
     ctx.fillStyle='#ff4a25'; ctx.fillRect(pad.x,pad.y,pad.w,pad.h);
     ctx.fillStyle='#fff04a'; ctx.beginPath(); ctx.moveTo(pad.x+8,pad.y+12);ctx.lineTo(pad.x+29,pad.y+2);ctx.lineTo(pad.x+50,pad.y+12);ctx.fill();
+  }
+
+  function drawHazards() {
+    ctx.fillStyle='#e23b32';
+    hazards.forEach((h)=>{ for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+9,h.y);ctx.lineTo(x+18,h.y+h.h);ctx.fill();} });
+    fallingHazards.forEach((r)=>{ctx.fillStyle='#5a4b43';ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();});
+    const sections=[[120,'SECTION 1  BASIC'],[1550,'SECTION 2  PITS + PLATFORMS'],[3100,'SECTION 3  ENEMY CLIMB'],[4800,'SECTION 4  HIGH SPEED'],[6450,'SECTION 5  FINAL CHALLENGE']];
+    ctx.font='bold 22px Arial';ctx.textAlign='left';sections.forEach(([x,label])=>{ctx.fillStyle='#0d385dcc';ctx.fillRect(x,205,390,38);ctx.fillStyle='#fff36a';ctx.fillText(label,x+12,232);});
   }
 
   function drawScenery() {
@@ -757,6 +808,9 @@
   $('#next').addEventListener('click', startGame);
   ui.pause.addEventListener('click', () => { if (mode === 'playing') paused = !paused; });
   addEventListener('resize', resize);
+  addEventListener('orientationchange', () => setTimeout(resize, 80));
+  window.visualViewport?.addEventListener('resize', resize);
+  window.visualViewport?.addEventListener('scroll', resize);
   document.addEventListener('contextmenu', (event) => event.preventDefault());
 
   resize();
