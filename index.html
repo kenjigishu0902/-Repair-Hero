@@ -21,6 +21,7 @@
       <div class="dash-meter"><span>DASH</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
       <div id="modeHud" class="mode-hud hidden"><span>RANDOM TRANSFORM</span><b id="modeTimer">NORMAL</b></div>
     </header>
+    <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b>MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
       <div class="title-badge">STAGES 1-1 — 1-5</div>
@@ -54,6 +55,7 @@
         <button data-input="right" aria-label="右へ移動">→</button>
       </div>
       <div class="action-pad">
+        <button id="attack" data-input="attack" class="attack hidden">⚔<br>ATTACK</button>
         <button data-input="jump" class="jump">JUMP</button>
       </div>
     </nav>
