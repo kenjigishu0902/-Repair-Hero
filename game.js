@@ -11,7 +11,7 @@
     modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), transformFlash: $('#transformFlash')
   };
 
-  const WORLD_WIDTH = 7600;
+  let WORLD_WIDTH = 7600;
   const FLOOR_Y = 610;
   const PLAYER_W = 72;
   const PLAYER_H = 112;
@@ -67,6 +67,16 @@
   let fragilePlatforms;
   let hazards;
   let fallingHazards;
+  let currentStage = 0;
+  let stageTheme = 'city';
+  let boss = null;
+  const STAGES = [
+    { id: '1-1', name: 'スマホ修理商店街', theme: 'city', width: 7600, time: 150 },
+    { id: '1-2', name: '地下ケーブル迷宮', theme: 'underground', width: 6800, time: 145 },
+    { id: '1-3', name: '水没スマホ海域', theme: 'sea', width: 7000, time: 145 },
+    { id: '1-4', name: 'クラウド空中回廊', theme: 'sky', width: 7200, time: 150 },
+    { id: '1-5', name: 'キング基板・決戦', theme: 'boss', width: 6500, time: 180 }
+  ];
 
   const staticPlatforms = [
     { x: 0, y: FLOOR_Y, w: 720, h: 130 },
@@ -120,6 +130,26 @@
     [6870, 360], [6980, 360], [7200, 490]
   ];
 
+  function configureStage() {
+    const stage = STAGES[currentStage];
+    WORLD_WIDTH = stage.width; stageTheme = stage.theme;
+    if (currentStage === 0) return;
+    staticPlatforms.length = 0; enemyBlueprints.length = 0; itemBlueprints.length = 0;
+    transformBlueprints.length = 0; coinBlueprints.length = 0; jumpPads.length = 0;
+    const gapEvery = stageTheme === 'sky' ? 620 : 900;
+    for (let x = 0; x < WORLD_WIDTH; x += gapEvery) {
+      const rise = stageTheme === 'underground' ? (x / gapEvery % 3) * 35 : stageTheme === 'sea' ? Math.sin(x / 600) * 45 : stageTheme === 'sky' ? -80 - (x / gapEvery % 3) * 55 : 0;
+      const gap = x && x < WORLD_WIDTH - 700 ? (stageTheme === 'sky' ? 150 : 95) : 0;
+      staticPlatforms.push({ x: x + gap, y: FLOOR_Y + rise, w: Math.min(gapEvery - gap, WORLD_WIDTH - x), h: 180 - rise });
+      if (x > 0) staticPlatforms.push({ x: x + 120, y: 440 + rise * .4, w: 190, h: 22 });
+    }
+    for (let x = 520; x < WORLD_WIDTH - 400; x += 470) coinBlueprints.push([x, 380 + (x / 470 % 3) * 55]);
+    for (let x = 900; x < WORLD_WIDTH - 500; x += 740) enemyBlueprints.push([[ 'cracked', 'wet', 'battery' ][Math.floor(x / 740) % 3], x, 350]);
+    for (let x = 1100; x < WORLD_WIDTH - 500; x += 1500) transformBlueprints.push([x, 330]);
+    itemBlueprints.push(['toolbox', 2050, 350], ['battery', 4050, 350]);
+    jumpPads.push({ x: 1500, y: FLOOR_Y - 18, w: 58, h: 18 });
+  }
+
   function resize() {
     const view = window.visualViewport;
     width = Math.round(view?.width || innerWidth);
@@ -130,12 +160,12 @@
     canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    // Portrait fits the complete 720-unit playfield; landscape favors forward visibility.
-    scale = portrait ? Math.max(.48, Math.min(width / 720, height / 760)) : height / 720;
+    // Portrait uses a dedicated close camera: Feni occupies roughly 22% of screen height.
+    scale = portrait ? height / 520 : height / 720;
     viewportWidth = width / scale;
     viewportHeight = height / scale;
     offsetX = Math.max(0, (width - viewportWidth * scale) / 2);
-    offsetY = portrait ? Math.max(0, (height - 720 * scale) / 2) : 0;
+    offsetY = 0;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   }
 
@@ -146,10 +176,11 @@
   }
 
   function resetGame() {
+    configureStage();
     Object.keys(input).forEach((key) => { input[key] = false; });
     player = { x: 150, y: FLOOR_Y - PLAYER_H, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0,
       grounded: true, hp: 3, coins: 0, score: 0, invincible: 0, state: 'idle', anim: 0,
-      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, checkpointHp: 3, checkpointCoins: 0, checkpointScore: 0, dead: false, dash: 100, boost: 0, clearTime: 0 };
+      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, checkpointHp: 3, checkpointCoins: 0, checkpointScore: 0, dead: false, dash: 100, boost: 0, clearTime: 0, healDelay: 0, healTick: 0 };
     enemies = enemyBlueprints.map(makeEnemy);
     droplets = [];
     coins = coinBlueprints.map(([x, y]) => ({ x, y, collected: false, phase: x / 30 }));
@@ -173,13 +204,10 @@
       { x: 3090, y: 475, baseX: 3090, baseY: 475, w: 105, h: 18, axis: 'y', range: 95, speed: .9, lastX: 3090, lastY: 475 },
       { x: 5535, y: 470, baseX: 5535, baseY: 470, w: 105, h: 18, axis: 'x', range: 75, speed: 1.25, lastX: 5535, lastY: 470 }
     ];
-    checkpoints = [
-      { x: 1570, y: FLOOR_Y - 70, active: false },
-      { x: 3900, y: FLOOR_Y - 125, active: false },
-      { x: 6400, y: FLOOR_Y - 70, active: false }
-    ];
-    goal = { x: 7410, y: FLOOR_Y - 180 };
-    remainingTime = START_TIME;
+    checkpoints = [WORLD_WIDTH*.24,WORLD_WIDTH*.52,WORLD_WIDTH*.8].map((x)=>({x,y:FLOOR_Y-70,active:false}));
+    goal = { x: WORLD_WIDTH - 190, y: FLOOR_Y - 180 };
+    boss = currentStage === 4 ? {x:WORLD_WIDTH-900,y:FLOOR_Y-230,w:190,h:230,hp:8,maxHp:8,vx:-80,alive:true,hit:0} : null;
+    remainingTime = STAGES[currentStage].time || START_TIME;
     elapsed = 0;
     cameraX = 0;
     shake = 0;
@@ -197,7 +225,7 @@
     ui.touch.classList.remove('hidden');
     ui.pause.classList.remove('hidden');
     ui.modeHud.classList.add('hidden');
-    say('STAGE 1　スマホ修理商店街');
+    say(`STAGE ${STAGES[currentStage].id}\n${STAGES[currentStage].name}`);
     window.RepairHeroSound?.music('game');
     sound('start');
   }
@@ -210,7 +238,8 @@
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
     $('#resultKicker').textContent = cleared ? 'STAGE CLEAR!' : 'GAME OVER';
-    $('#resultTitle').textContent = cleared ? '修理完了！' : 'もう一度挑戦！';
+    $('#resultTitle').textContent = cleared ? (currentStage === STAGES.length-1 ? '全ステージ修理完了！' : `${STAGES[currentStage].id} 修理完了！`) : 'もう一度挑戦！';
+    $('#next').classList.toggle('hidden', !cleared || currentStage === STAGES.length-1);
     $('#resultStats').textContent = `SCORE ${String(player.score).padStart(6, '0')}　COIN ${player.coins}　TIME ${Math.ceil(remainingTime)}`;
     ui.result.classList.remove('hidden');
     sound(cleared ? 'clear' : 'gameover');
@@ -298,10 +327,10 @@
     clearMode(false);
     playerMode = nextMode;
     modeTimer = MODE_DURATION;
-    slowMotion = .3;
-    if (nextMode === 'battery') player.hp = Math.min(3, player.hp + 1);
-    const subtitles = { battery: 'HP RECOVERY!', lcd: 'HIGH SPEED!!  SCORE ×2!', king: 'FLY!' };
-    say(nextMode === 'lcd' ? 'LCD MODE!!\nHIGH SPEED!!\nSCORE ×2' : `${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
+    slowMotion = 0;
+    if (nextMode === 'battery') { player.healDelay = 0; player.healTick = 0; }
+    const subtitles = { battery: 'AUTO RECOVERY!', lcd: 'SUPER SPEED!!', king: 'INVINCIBLE FLY!' };
+    say(nextMode === 'lcd' ? 'LCD MODE!!\nSUPER SPEED!!' : `${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
     ui.modeHud.className = `mode-hud ${nextMode}`;
     ui.transformFlash.className = `transform-flash ${nextMode}`;
     void ui.transformFlash.offsetWidth;
@@ -327,12 +356,20 @@
       flightSoundTimer -= dt;
       if (flightSoundTimer <= 0) { sound('kingFlight'); flightSoundTimer = .55; }
     }
+    if (playerMode === 'battery') {
+      player.healDelay += dt;
+      if (player.healDelay >= 1 && player.hp < 3) {
+        player.healTick += dt;
+        if (player.healTick >= .75) { player.healTick = 0; player.hp = Math.min(3, player.hp + .25); sound('heal'); emitModeParticles('battery', 8); }
+      }
+    }
     if (modeTimer <= 0) clearMode(true);
   }
 
   function hurt(sourceX) {
     if (player.invincible > 0 || mode !== 'playing' || playerMode === 'king') return;
     player.hp -= playerMode === 'battery' ? .5 : 1;
+    player.healDelay = 0; player.healTick = 0;
     player.invincible = 1.6;
     player.vx = player.x < sourceX ? -290 : 290;
     player.vy = -420;
@@ -383,11 +420,11 @@
     player.boost = Math.max(0, player.boost - dt);
     const canDash = dashing && player.dash > 0;
     player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -38 : 24) * dt));
-    const speedScale = playerMode === 'lcd' ? 1.7 : playerMode === 'battery' ? 1.16 : 1;
-    const dashSpeed = playerMode === 'lcd' ? 1000 : player.boost ? 610 : playerMode === 'king' ? 585 : 455;
+    const speedScale = playerMode === 'lcd' ? 2.4 : playerMode === 'battery' ? 1.12 : 1;
+    const dashSpeed = playerMode === 'lcd' ? 1365 : player.boost ? 610 : playerMode === 'king' ? 720 : 455;
     const targetSpeed = direction * (canDash ? dashSpeed : 245 * speedScale);
     if (canDash && Math.floor(elapsed * 9) !== Math.floor((elapsed-dt)*9)) sound('dash');
-    const acceleration = (player.grounded ? 1900 : 1050) * (playerMode === 'lcd' ? 1.75 : 1);
+    const acceleration = (player.grounded ? 1900 : 1050) * (playerMode === 'lcd' ? 2.8 : 1);
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
     if (!direction && player.grounded) player.vx *= Math.pow(playerMode === 'lcd' ? .00002 : .0008, dt);
     if (direction) player.facing = direction;
@@ -426,7 +463,7 @@
         spawnDust(player.x + player.w / 2,pad.y,10); sound('jump'); say('SUPER JUMP!');
       }
     }
-    if (playerMode === 'king' && player.y > FLOOR_Y - player.h + 35) { player.y = FLOOR_Y - player.h + 35; player.vy = Math.min(0, player.vy); }
+    if (playerMode === 'king') { player.y = Math.max(45, Math.min(FLOOR_Y-player.h+35,player.y)); if(player.y<=45)player.vy=Math.max(0,player.vy); }
     if (player.y > 790) respawnAfterFall();
 
     const speed = Math.abs(player.vx);
@@ -465,7 +502,9 @@
         }
       }
 
-      if (overlap(player, enemy) && player.invincible <= 0) {
+      if (overlap(player, enemy) && playerMode === 'king') {
+        enemy.alive=false; enemy.squish=.45; player.score+=scoreValue(750); sound('kingHit'); emitModeParticles('king',18);
+      } else if (overlap(player, enemy) && player.invincible <= 0) {
         const playerBottom = player.y + player.h;
         if (player.vy > 120 && playerBottom - enemy.y < 32) {
           enemy.alive = false; enemy.squish = .45; player.vy = -410; player.score += scoreValue(500);
@@ -476,10 +515,19 @@
 
     for (const drop of droplets) {
       drop.vy += GRAVITY * .45 * dt; drop.x += drop.vx * dt; drop.y += drop.vy * dt;
-      if (overlap(player, drop)) { drop.dead = true; hurt(drop.x); }
+      if (overlap(player, drop)) { drop.dead = true; if(playerMode !== 'king') hurt(drop.x); }
       if (drop.y > FLOOR_Y + 30) drop.dead = true;
     }
     droplets = droplets.filter((drop) => !drop.dead && Math.abs(drop.x - cameraX) < 1500);
+    if (boss?.alive) {
+      boss.hit=Math.max(0,boss.hit-dt); boss.x+=boss.vx*dt;
+      if(boss.x<WORLD_WIDTH-1250||boss.x>WORLD_WIDTH-480)boss.vx*=-1;
+      if(overlap(player,boss)) {
+        const attack=playerMode==='king'||(player.vy>160&&player.y+player.h<boss.y+70);
+        if(attack&&boss.hit<=0){boss.hp-=1;boss.hit=.45;player.vy=-480;player.score+=scoreValue(1000);sound('kingHit');emitModeParticles(playerMode==='king'?'king':'lcd',30);if(boss.hp<=0){boss.alive=false;player.score+=scoreValue(10000);say('BOSS REPAIRED!!');sound('bossDown');}}
+        else hurt(boss.x+boss.w/2);
+      }
+    }
   }
 
   function updateObjects(dt) {
@@ -536,7 +584,7 @@
       sound('checkpoint');
       for (let i = 0; i < 28; i += 1) sparks.push({ x: checkpoint.x + 35, y: checkpoint.y + 20, vx: (Math.random() - .5) * 260, vy: (Math.random() - .5) * 260, life: .8, size: 4 });
     }
-    if (player.x + player.w > goal.x && !player.clearTime) {
+    if (player.x + player.w > goal.x && !player.clearTime && (!boss || !boss.alive)) {
       player.clearTime = .001; player.vx = 0; player.score += Math.ceil(remainingTime) * 25; sound('goal');
       say('STAGE CLEAR!!');
       for(let i=0;i<100;i+=1) confetti.push({x:cameraX+Math.random()*1280,y:-Math.random()*500,vx:(Math.random()-.5)*100,vy:100+Math.random()*180,life:4,color:['#ff3b20','#ffd338','#41d9ec','#fff'][i%4]});
@@ -562,11 +610,12 @@
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
     if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
-    const lead = playerMode === 'lcd' ? Math.min(viewportWidth*.18, player.vx*.22) : 0;
-    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x + lead - viewportWidth * (portrait ? .5 : player.facing > 0 ? .34 : .56)));
+    const lead = playerMode === 'lcd' ? Math.max(-viewportWidth*.22,Math.min(viewportWidth*.22, player.vx*.2)) : player.vx*.06;
+    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x + lead - viewportWidth * (portrait ? .39 : player.facing > 0 ? .34 : .56)));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * (playerMode === 'lcd' ? 10 : 7));
-    const targetCameraY = portrait ? Math.max(-90, Math.min(110, player.y - 390)) : 0;
-    cameraY += (targetCameraY - cameraY) * Math.min(1, dt * 5);
+    const verticalAnchor = playerMode==='king' ? .55 : player.vy < -100 ? .68 : player.vy > 180 ? .48 : .61;
+    const targetCameraY = portrait ? Math.max(-130, Math.min(260, player.y - viewportHeight*verticalAnchor)) : 0;
+    cameraY += (targetCameraY - cameraY) * Math.min(1, dt * (playerMode==='lcd'?11:6));
     shake *= Math.pow(.02, dt);
     landingShake *= Math.pow(.01, dt);
     updateHud();
@@ -588,7 +637,8 @@
 
   function drawBackground() {
     const sky = ctx.createLinearGradient(0, 0, 0, 720);
-    sky.addColorStop(0, '#63cbe6'); sky.addColorStop(.65, '#d8f1dc'); sky.addColorStop(1, '#f7d794');
+    const palettes={city:['#63cbe6','#d8f1dc','#f7d794'],underground:['#10152d','#36285a','#59463d'],sea:['#087fa9','#35c9dc','#b8f4df'],sky:['#287fd1','#9ce7ff','#fff2bd'],boss:['#451251','#b42d44','#ff9b43']};
+    const palette=palettes[stageTheme]; sky.addColorStop(0,palette[0]); sky.addColorStop(.65,palette[1]); sky.addColorStop(1,palette[2]);
     ctx.fillStyle = sky; ctx.fillRect(-50, -200, Math.max(1380, viewportWidth+100), Math.max(1100, viewportHeight+300));
     ctx.fillStyle = '#fff4';
     for (let i = 0; i < 7; i += 1) {
@@ -628,6 +678,7 @@
     checkpoints.forEach(drawCheckpoint);
     drawGoal();
     enemies.forEach(drawEnemy);
+    if(boss?.alive) drawBoss();
     droplets.forEach(drawDroplet);
     dust.forEach((particle) => { ctx.globalAlpha = particle.life * 1.8; ctx.fillStyle = '#dfc18a'; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, 7); ctx.fill(); });
     ctx.globalAlpha = 1;
@@ -639,6 +690,14 @@
     ctx.globalAlpha = 1;
     drawPlayer();
     ctx.restore();
+  }
+
+  function drawBoss(){
+    ctx.save();ctx.translate(boss.x+boss.w/2,boss.y+boss.h/2);ctx.shadowColor=boss.hit?'#fff':'#ff352d';ctx.shadowBlur=35;
+    ctx.fillStyle=boss.hit?'#fff':'#59204f';drawRoundedRect(-95,-115,190,230,28);ctx.fillStyle='#111d32';ctx.fillRect(-68,-82,136,122);
+    ctx.strokeStyle='#ff5544';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-45,-45);ctx.lineTo(20,20);ctx.lineTo(-5,70);ctx.moveTo(20,20);ctx.lineTo(55,-55);ctx.stroke();
+    ctx.fillStyle='#ffdb32';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText('MEGA BUG',0,104);ctx.restore();
+    ctx.fillStyle='#180c22';ctx.fillRect(boss.x,boss.y-28,boss.w,14);ctx.fillStyle='#ff493e';ctx.fillRect(boss.x,boss.y-28,boss.w*(boss.hp/boss.maxHp),14);
   }
 
   function drawPlatform(platform, moving = false) {
@@ -732,6 +791,8 @@
 
   function drawPlayer() {
     if (player.invincible > 0 && Math.floor(elapsed * 14) % 2) return;
+    if(playerMode==='lcd'){ctx.save();ctx.strokeStyle='#61ecff';ctx.lineWidth=3;ctx.globalAlpha=.6;for(let i=0;i<7;i++){const y=player.y+Math.random()*player.h;ctx.beginPath();ctx.moveTo(player.x-25-Math.random()*120,y);ctx.lineTo(player.x-160-Math.random()*160,y);ctx.stroke();}ctx.restore();}
+    if(playerMode==='king'){ctx.save();ctx.globalAlpha=.48;ctx.fillStyle='#ffd52f';ctx.shadowColor='#fff09a';ctx.shadowBlur=35;ctx.beginPath();ctx.ellipse(player.x+player.w/2,player.y+player.h/2,player.w*.8,player.h*.75,0,0,7);ctx.fill();ctx.restore();}
     drawFeniSprite(player.x, player.y, player.facing, player.spin);
   }
 
@@ -805,7 +866,7 @@
 
   $('#start').addEventListener('click', startGame);
   $('#retry').addEventListener('click', startGame);
-  $('#next').addEventListener('click', startGame);
+  $('#next').addEventListener('click', () => { currentStage=Math.min(STAGES.length-1,currentStage+1); startGame(); });
   ui.pause.addEventListener('click', () => { if (mode === 'playing') paused = !paused; });
   addEventListener('resize', resize);
   addEventListener('orientationchange', () => setTimeout(resize, 80));

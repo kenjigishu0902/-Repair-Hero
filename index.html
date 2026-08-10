@@ -23,12 +23,12 @@
     </header>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGE 1</div>
+      <div class="title-badge">STAGES 1-1 — 1-5</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
       <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">画面ボタン：DASH ←　JUMP（2回）　DASH →</p>
+      <p class="help">地下・海・空を突破して大型ボスを修理せよ！</p>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -48,13 +48,13 @@
 
     <nav id="touch" class="touch hidden" aria-label="タッチ操作">
       <div class="move-pad">
+        <button data-input="dashLeft" class="dash" aria-label="左へダッシュ">DASH ←</button>
+        <button data-input="dashRight" class="dash" aria-label="右へダッシュ">DASH →</button>
         <button data-input="left" aria-label="左へ移動">←</button>
         <button data-input="right" aria-label="右へ移動">→</button>
       </div>
       <div class="action-pad">
-        <button data-input="dashLeft" class="dash" aria-label="左へダッシュ">DASH ←</button>
         <button data-input="jump" class="jump">JUMP</button>
-        <button data-input="dashRight" class="dash" aria-label="右へダッシュ">DASH →</button>
       </div>
     </nav>
   </main>
