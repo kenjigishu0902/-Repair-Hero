@@ -21,7 +21,7 @@
     fenicoin: [880, 1500, .3], fire: [340, 980, .3], stomp: [190, 130, .12], damage: [120, 70, .25],
     checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6],
     transformItem: [280, 920, .18], batteryMode: [330, 740, .42], lcdMode: [1050, 480, .38],
-    kingMode: [260, 1480, .65], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
+    kingMode: [260, 1480, .65], muscleMode: [95, 1320, .62], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
     heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8],
     swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24]
   };
@@ -96,6 +96,8 @@
       });
     } else if (name === 'lcdMode') {
       window.setTimeout(() => note(1320, .12, .03, 'square'), 110);
+    } else if (name === 'muscleMode') {
+      [90, 130, 220, 440].forEach((frequency, index) => window.setTimeout(() => note(frequency, .22, .065, index < 2 ? 'sawtooth' : 'square'), index * 55));
     } else if (name === 'batteryMode') {
       window.setTimeout(() => note(880, .2, .035, 'sine'), 130);
     }
