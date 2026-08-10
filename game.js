@@ -8,7 +8,8 @@
   const ui = {
     title: $('#title'), result: $('#result'), hud: $('#hud'), touch: $('#touch'), pause: $('#pause'),
     hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), dashGauge: $('#dashGauge'), notice: $('#notice'),
-    modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), transformFlash: $('#transformFlash')
+    modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), transformFlash: $('#transformFlash'),
+    bossHud: $('#bossHud'), bossHp: $('#bossHp'), goalLock: $('#goalLock'), attack: $('#attack')
   };
 
   let WORLD_WIDTH = 7600;
@@ -17,16 +18,16 @@
   const PLAYER_H = 112;
   const MAX_JUMPS = 2;
   const playerImages = {};
-  for (const [name, source] of Object.entries({ normal: './feni.png', battery: './feni_battery.png', lcd: './feni_lcd.png', king: './feni_king.png' })) {
+  for (const [name, source] of Object.entries({ normal: './feni.png', battery: './feni_battery.png', lcd: './feni_lcd.png', king: './feni_king.png', gori: './feni_king.png' })) {
     playerImages[name] = new Image();
     playerImages[name].src = source;
   }
   const MODE_DURATION = 10;
-  const MODE_NAMES = { battery: 'BATTERY MODE', lcd: 'LCD MODE', king: 'KING MODE' };
+  const MODE_NAMES = { battery: 'BATTERY MODE', lcd: 'LCD MODE', king: 'KING MODE', gori: 'GORI MATCHO MODE' };
   const GRAVITY = 1800;
   const MAX_FALL = 920;
   const START_TIME = 150;
-  const input = { left: false, right: false, jump: false, dashLeft: false, dashRight: false };
+  const input = { left: false, right: false, jump: false, dashLeft: false, dashRight: false, attack: false };
   let width = 1280;
   let height = 720;
   let dpr = 1;
@@ -70,6 +71,7 @@
   let currentStage = 0;
   let stageTheme = 'city';
   let boss = null;
+  let projectiles = [], shockwaves = [], combatFx = [], swordItem = null, bossGate = null, bossIntro = 0, hitStop = 0;
   const STAGES = [
     { id: '1-1', name: 'スマホ修理商店街', theme: 'city', width: 7600, time: 150 },
     { id: '1-2', name: '地下ケーブル迷宮', theme: 'underground', width: 6800, time: 145 },
@@ -133,21 +135,39 @@
   function configureStage() {
     const stage = STAGES[currentStage];
     WORLD_WIDTH = stage.width; stageTheme = stage.theme;
-    if (currentStage === 0) return;
     staticPlatforms.length = 0; enemyBlueprints.length = 0; itemBlueprints.length = 0;
     transformBlueprints.length = 0; coinBlueprints.length = 0; jumpPads.length = 0;
-    const gapEvery = stageTheme === 'sky' ? 620 : 900;
-    for (let x = 0; x < WORLD_WIDTH; x += gapEvery) {
-      const rise = stageTheme === 'underground' ? (x / gapEvery % 3) * 35 : stageTheme === 'sea' ? Math.sin(x / 600) * 45 : stageTheme === 'sky' ? -80 - (x / gapEvery % 3) * 55 : 0;
-      const gap = x && x < WORLD_WIDTH - 700 ? (stageTheme === 'sky' ? 150 : 95) : 0;
-      staticPlatforms.push({ x: x + gap, y: FLOOR_Y + rise, w: Math.min(gapEvery - gap, WORLD_WIDTH - x), h: 180 - rise });
-      if (x > 0) staticPlatforms.push({ x: x + 120, y: 440 + rise * .4, w: 190, h: 22 });
+    // Five authored sections per stage: every one changes elevation, gap rhythm and required action.
+    const sectionLength = WORLD_WIDTH / 5;
+    const floors = [0, 25, -20, 45, 0];
+    for (let section = 0; section < 5; section += 1) {
+      const start = section * sectionLength;
+      const end = (section + 1) * sectionLength;
+      const themeLift = stageTheme === 'sky' ? -70 : stageTheme === 'underground' ? 25 : 0;
+      const gap = section === 0 ? 80 : 115 + currentStage * 10;
+      const chunk = section === 3 ? 380 : 460;
+      for (let x = start; x < end - 100; x += chunk) {
+        const first = x === start && section === 0;
+        const px = first ? x : x + gap;
+        const rise = floors[(section + Math.floor(x / chunk)) % floors.length] + themeLift;
+        staticPlatforms.push({x:px, y:FLOOR_Y + rise, w:Math.min(chunk-gap+(first?gap:0),end-px), h:190-rise});
+        if (section === 1 || section === 4) staticPlatforms.push({x:px+145,y:FLOOR_Y-145+rise*.35,w:105+(x/chunk%2)*35,h:20});
+        if (section === 2) staticPlatforms.push({x:px+80,y:FLOOR_Y-90-(Math.floor(x/chunk)%3)*80,w:125,h:20});
+      }
+      const ex = start + sectionLength * .58;
+      enemyBlueprints.push([['cracked','battery','wet'][section%3],ex,FLOOR_Y-210]);
+      transformBlueprints.push([start+sectionLength*.34, FLOOR_Y-235]);
+      for(let c=0;c<5;c+=1) coinBlueprints.push([start+260+c*85,FLOOR_Y-170-(c%2)*45]);
+      jumpPads.push({x:start+sectionLength*.76,y:FLOOR_Y-22,w:62,h:22});
     }
-    for (let x = 520; x < WORLD_WIDTH - 400; x += 470) coinBlueprints.push([x, 380 + (x / 470 % 3) * 55]);
-    for (let x = 900; x < WORLD_WIDTH - 500; x += 740) enemyBlueprints.push([[ 'cracked', 'wet', 'battery' ][Math.floor(x / 740) % 3], x, 350]);
-    for (let x = 1100; x < WORLD_WIDTH - 500; x += 1500) transformBlueprints.push([x, 330]);
-    itemBlueprints.push(['toolbox', 2050, 350], ['battery', 4050, 350]);
-    jumpPads.push({ x: 1500, y: FLOOR_Y - 18, w: 58, h: 18 });
+    itemBlueprints.push(['battery',WORLD_WIDTH*.18,FLOOR_Y-170],['toolbox',WORLD_WIDTH*.47,FLOOR_Y-250],['screen',WORLD_WIDTH*.72,FLOOR_Y-190]);
+    [WORLD_WIDTH*.205,WORLD_WIDTH*.405,WORLD_WIDTH*.605,WORLD_WIDTH*.805].forEach(x=>staticPlatforms.push({x:x-35,y:FLOOR_Y,w:260,h:190,safe:true}));
+    // A continuous, fair arena floor prevents pit-only boss deaths.
+    if (currentStage === 4) {
+      staticPlatforms.push({x:WORLD_WIDTH-1450,y:FLOOR_Y,w:1450,h:190});
+      staticPlatforms.push({x:WORLD_WIDTH-1240,y:FLOOR_Y-105,w:150,h:20},{x:WORLD_WIDTH-560,y:FLOOR_Y-150,w:155,h:20});
+      itemBlueprints.push(['gori',WORLD_WIDTH-1120,FLOOR_Y-165]);
+    }
   }
 
   function resize() {
@@ -180,7 +200,7 @@
     Object.keys(input).forEach((key) => { input[key] = false; });
     player = { x: 150, y: FLOOR_Y - PLAYER_H, w: PLAYER_W, h: PLAYER_H, vx: 0, vy: 0,
       grounded: true, hp: 3, coins: 0, score: 0, invincible: 0, state: 'idle', anim: 0,
-      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, checkpointHp: 3, checkpointCoins: 0, checkpointScore: 0, dead: false, dash: 100, boost: 0, clearTime: 0, healDelay: 0, healTick: 0 };
+      facing: 1, jumpHeld: false, jumpCount: 0, spin: 0, justLanded: 0, spawnX: 150, spawnY: FLOOR_Y - PLAYER_H, spawnCamera: 0, checkpointHp: 3, checkpointCoins: 0, checkpointScore: 0, dead: false, dash: 100, boost: 0, clearTime: 0, healDelay: 0, healTick: 0, hasSword:false, attackHeld:false, attackTime:0, attackCooldown:0 };
     enemies = enemyBlueprints.map(makeEnemy);
     droplets = [];
     coins = coinBlueprints.map(([x, y]) => ({ x, y, collected: false, phase: x / 30 }));
@@ -192,21 +212,16 @@
     dust = [];
     sparks = [];
     afterimages = [];
-    fragilePlatforms = [
-      { x: 1260, y: 505, w: 105, h: 18, kind: 'vanish', timer: 0, active: true },
-      { x: 2960, y: 395, w: 92, h: 18, kind: 'crumble', timer: 0, active: true },
-      { x: 5350, y: 385, w: 90, h: 18, kind: 'crumble', timer: 0, active: true }
-    ];
-    hazards = [{x:690,y:590,w:30,h:20},{x:1615,y:590,w:90,h:20},{x:3080,y:590,w:120,h:20},{x:4760,y:535,w:120,h:20},{x:6460,y:590,w:95,h:20}];
-    fallingHazards = [{x:2700,y:90,baseY:90,w:28,h:34,vy:0,delay:1},{x:4550,y:70,baseY:70,w:34,h:40,vy:0,delay:2.2},{x:6710,y:60,baseY:60,w:32,h:38,vy:0,delay:1.4}];
-    movingPlatforms = [
-      { x: 735, y: 500, baseX: 735, baseY: 500, w: 105, h: 18, axis: 'x', range: 80, speed: 1.15, lastX: 735, lastY: 500 },
-      { x: 3090, y: 475, baseX: 3090, baseY: 475, w: 105, h: 18, axis: 'y', range: 95, speed: .9, lastX: 3090, lastY: 475 },
-      { x: 5535, y: 470, baseX: 5535, baseY: 470, w: 105, h: 18, axis: 'x', range: 75, speed: 1.25, lastX: 5535, lastY: 470 }
-    ];
-    checkpoints = [WORLD_WIDTH*.24,WORLD_WIDTH*.52,WORLD_WIDTH*.8].map((x)=>({x,y:FLOOR_Y-70,active:false}));
+    fragilePlatforms = [WORLD_WIDTH*.28,WORLD_WIDTH*.44,WORLD_WIDTH*.66,WORLD_WIDTH*.78].map((x,i)=>({x,y:FLOOR_Y-115-(i%2)*65,w:100,h:18,kind:i%2?'vanish':'crumble',timer:0,active:true}));
+    hazards = [WORLD_WIDTH*.13,WORLD_WIDTH*.31,WORLD_WIDTH*.53,WORLD_WIDTH*.71].map((x,i)=>({x,y:FLOOR_Y-20+(i%2)*25,w:58+(i%2)*28,h:20,type:i===2?'electric':'spike'}));
+    fallingHazards = [WORLD_WIDTH*.38,WORLD_WIDTH*.62,WORLD_WIDTH*.82].map((x,i)=>({x,y:60,baseY:60,w:34,h:42,vy:0,delay:1+i*.7,warn:0}));
+    movingPlatforms = [WORLD_WIDTH*.17,WORLD_WIDTH*.36,WORLD_WIDTH*.57,WORLD_WIDTH*.74].map((x,i)=>({x,y:470-i%2*65,baseX:x,baseY:470-i%2*65,w:112,h:18,axis:i%2?'y':'x',range:85+i*8,speed:.85+i*.16,lastX:x,lastY:470-i%2*65}));
+    checkpoints = [WORLD_WIDTH*.205,WORLD_WIDTH*.405,WORLD_WIDTH*.605,WORLD_WIDTH*.805].map((x)=>({x,y:FLOOR_Y-70,active:false}));
     goal = { x: WORLD_WIDTH - 190, y: FLOOR_Y - 180 };
-    boss = currentStage === 4 ? {x:WORLD_WIDTH-900,y:FLOOR_Y-230,w:190,h:230,hp:8,maxHp:8,vx:-80,alive:true,hit:0} : null;
+    boss = currentStage === 4 ? {x:WORLD_WIDTH-720,y:FLOOR_Y-270,w:220,h:270,hp:24,maxHp:24,vx:0,vy:0,alive:true,hit:0,phase:1,state:'dormant',timer:0,cooldown:1.8,grounded:true,intro:false,defeat:0} : null;
+    swordItem = currentStage === 4 ? {x:WORLD_WIDTH-1420,y:FLOOR_Y-85,w:42,h:58,collected:false} : null;
+    bossGate = currentStage === 4 ? {x:WORLD_WIDTH-1490,y:FLOOR_Y-250,w:28,h:250,closed:false} : null;
+    projectiles=[]; shockwaves=[]; combatFx=[]; bossIntro=0; hitStop=0;
     remainingTime = STAGES[currentStage].time || START_TIME;
     elapsed = 0;
     cameraX = 0;
@@ -225,6 +240,7 @@
     ui.touch.classList.remove('hidden');
     ui.pause.classList.remove('hidden');
     ui.modeHud.classList.add('hidden');
+    ui.bossHud.classList.add('hidden'); ui.attack.classList.add('hidden'); document.body.classList.remove('boss-phase2'); ui.goalLock.textContent='GOAL LOCKED'; ui.goalLock.classList.remove('unlocked');
     say(`STAGE ${STAGES[currentStage].id}\n${STAGES[currentStage].name}`);
     window.RepairHeroSound?.music('game');
     sound('start');
@@ -237,6 +253,7 @@
     ui.hud.classList.add('hidden');
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
+    ui.bossHud.classList.add('hidden'); ui.attack.classList.add('hidden');
     $('#resultKicker').textContent = cleared ? 'STAGE CLEAR!' : 'GAME OVER';
     $('#resultTitle').textContent = cleared ? (currentStage === STAGES.length-1 ? '全ステージ修理完了！' : `${STAGES[currentStage].id} 修理完了！`) : 'もう一度挑戦！';
     $('#next').classList.toggle('hidden', !cleared || currentStage === STAGES.length-1);
@@ -315,7 +332,7 @@
   }
 
   function emitModeParticles(modeName, amount) {
-    const colors = { battery: ['#54ff72', '#d8ff76'], lcd: ['#48eaff', '#ffffff'], king: ['#ffd338', '#ff8a20', '#fff7b0'] }[modeName];
+    const colors = { battery: ['#54ff72', '#d8ff76'], lcd: ['#48eaff', '#ffffff'], king: ['#ffd338', '#ff8a20', '#fff7b0'], gori:['#ff542f','#ffd338','#fff'] }[modeName];
     for (let i = 0; i < amount; i += 1) modeParticles.push({
       x: player.x + player.w / 2 + (Math.random() - .5) * 80, y: player.y + player.h / 2 + (Math.random() - .5) * 110,
       vx: (Math.random() - .5) * 150, vy: -30 - Math.random() * 120, life: .45 + Math.random() * .65,
@@ -329,7 +346,7 @@
     modeTimer = MODE_DURATION;
     slowMotion = 0;
     if (nextMode === 'battery') { player.healDelay = 0; player.healTick = 0; }
-    const subtitles = { battery: 'AUTO RECOVERY!', lcd: 'SUPER SPEED!!', king: 'INVINCIBLE FLY!' };
+    const subtitles = { battery: 'AUTO RECOVERY!', lcd: 'SUPER SPEED!!', king: 'INVINCIBLE FLY!', gori:'POWER PUNCH!!' };
     say(nextMode === 'lcd' ? 'LCD MODE!!\nSUPER SPEED!!' : `${MODE_NAMES[nextMode]}！\n${subtitles[nextMode]}`);
     ui.modeHud.className = `mode-hud ${nextMode}`;
     ui.transformFlash.className = `transform-flash ${nextMode}`;
@@ -343,7 +360,7 @@
   function collectTransformItem(item) {
     item.collected = true;
     player.score += scoreValue(250);
-    const choices = ['battery', 'lcd', 'king'];
+    const choices = currentStage === 4 ? ['battery', 'lcd', 'king', 'gori'] : ['battery', 'lcd', 'king'];
     applyMode(choices[Math.floor(Math.random() * choices.length)]);
   }
 
@@ -409,10 +426,37 @@
     respawnAtCheckpoint('落下！ チェックポイントから再開');
   }
 
+  function damageBoss(amount, force = 0) {
+    if (!boss?.alive || boss.hit > 0 || boss.state === 'dormant') return false;
+    boss.hp = Math.max(0, boss.hp - amount); boss.hit = .34; boss.vx += player.facing * force;
+    player.score += scoreValue(amount * 700); shake = amount >= 4 ? 25 : 12;
+    combatFx.push({x:boss.x+boss.w/2,y:boss.y+boss.h/2,life:.55,size:amount>=4?125:65,type:amount>=4?'punch':'slash'});
+    sound(amount >= 4 ? 'punchHit' : 'swordHit');
+    if (amount >= 4) { hitStop=.10; slowMotion=.16; shockwaves.push({x:boss.x,y:FLOOR_Y-28,w:20,vx:player.facing*330,life:.8,friendly:true}); }
+    if (boss.hp <= boss.maxHp/2 && boss.phase === 1) { boss.phase=2; boss.cooldown=.4; document.body.classList.add('boss-phase2'); say('PHASE 2!!\nOVERDRIVE'); window.RepairHeroSound?.music('boss2'); }
+    if (boss.hp <= 0) { boss.alive=false; boss.state='defeated'; boss.defeat=.001; boss.vx=0; boss.vy=0; slowMotion=.75; sound('bossDown'); }
+    return true;
+  }
+
+  function performAttack() {
+    if (!player.hasSword || player.attackCooldown > 0 || player.dead) return;
+    const punch = playerMode === 'gori';
+    player.attackTime = punch ? .32 : .24; player.attackCooldown = punch ? .8 : .48;
+    const range = punch ? 92 : 105;
+    const hitbox={x:player.facing>0?player.x+player.w-4:player.x-range+4,y:player.y+28,w:range,h:44};
+    sound(punch?'punch':'sword');
+    combatFx.push({x:player.facing>0?hitbox.x+range:hitbox.x,y:hitbox.y+22,life:.25,size:range,type:punch?'punch':'slash'});
+    if (boss?.alive && overlap(hitbox,{x:boss.x,y:boss.y+70,w:boss.w,h:boss.h-70})) damageBoss(punch?4:2,punch?250:70);
+    for(const enemy of enemies) if(enemy.alive&&overlap(hitbox,enemy)){enemy.alive=false;enemy.squish=.4;player.score+=500;}
+  }
+
   function updatePlayer(dt) {
     if (player.dead) return;
     player.invincible = Math.max(0, player.invincible - dt);
     player.justLanded = Math.max(0, player.justLanded - dt);
+    player.attackCooldown=Math.max(0,player.attackCooldown-dt); player.attackTime=Math.max(0,player.attackTime-dt);
+    if(input.attack&&!player.attackHeld) performAttack();
+    player.attackHeld=input.attack;
     const dashDirection = Number(input.dashRight) - Number(input.dashLeft);
     const normalDirection = Number(input.right) - Number(input.left);
     const direction = dashDirection || normalDirection;
@@ -478,6 +522,46 @@
     if (canDash) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*24) !== Math.floor((elapsed-dt)*24)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.2}); }
   }
 
+  function updateBoss(dt) {
+    if (!boss) return;
+    if (!boss.intro && player.x > WORLD_WIDTH-1510) {
+      boss.intro=true; bossIntro=.001; bossGate.closed=true;
+      ui.bossHud.classList.remove('hidden');
+      say('WARNING!!'); window.setTimeout(()=>{if(mode==='playing')say('BOSS BATTLE');},900); window.RepairHeroSound?.music('boss');
+    }
+    if (boss.defeat) {
+      boss.defeat += dt;
+      if (boss.defeat > .55 && boss.defeat-dt <= .55) { shake=35; for(let i=0;i<12;i++) combatFx.push({x:boss.x+Math.random()*boss.w,y:boss.y+Math.random()*boss.h,life:.8,size:80,type:'explosion'}); say('BOSS DEFEATED!!'); }
+      if (boss.defeat > 1.7 && bossGate.closed) { bossGate.closed=false; ui.goalLock.textContent='GOAL UNLOCKED!!'; ui.goalLock.classList.add('unlocked'); say('GOAL UNLOCKED!!'); window.RepairHeroSound?.music('game'); }
+      return;
+    }
+    if (!boss.intro || !boss.alive) return;
+    boss.hit=Math.max(0,boss.hit-dt); boss.timer+=dt; boss.cooldown-=dt;
+    const left=WORLD_WIDTH-1370,right=WORLD_WIDTH-260-boss.w;
+    if (boss.state==='dormant') { boss.state='chase'; boss.timer=0; }
+    if (boss.state==='chase') {
+      const speed=boss.phase===2?145:95; boss.vx+=(Math.sign(player.x-boss.x)*speed-boss.vx)*Math.min(1,dt*3);
+      if(boss.cooldown<=0){const choices=boss.phase===2?['charge','jump','shoot','slam']:['charge','jump','shoot'];boss.state=choices[Math.floor(boss.timer)%choices.length];boss.timer=0;boss.vx=0;boss.cooldown=boss.phase===2?1.15:1.8;}
+    } else if (boss.state==='charge') {
+      if(boss.timer<.65) boss.vx=0; else boss.vx=Math.sign(player.x-boss.x)*(boss.phase===2?520:410);
+      if(boss.timer>1.25){boss.state='chase';boss.timer=0;}
+    } else if (boss.state==='jump') {
+      if(boss.timer<.5) boss.vx=0; else if(boss.grounded){boss.vy=-720;boss.vx=Math.sign(player.x-boss.x)*155;boss.grounded=false;}
+      if(boss.timer>1.45&&boss.grounded){shockwaves.push({x:boss.x+boss.w/2,y:FLOOR_Y-25,w:25,vx:-280,life:1.5},{x:boss.x+boss.w/2,y:FLOOR_Y-25,w:25,vx:280,life:1.5});shake=18;boss.state='chase';boss.timer=0;}
+    } else if (boss.state==='shoot') {
+      if(boss.timer>.55&&boss.timer-dt<=.55){const dx=player.x-boss.x,dy=player.y-boss.y,len=Math.hypot(dx,dy)||1;projectiles.push({x:boss.x+boss.w/2,y:boss.y+80,w:24,h:24,vx:dx/len*300,vy:dy/len*300,life:3});sound('bossShot');}
+      if(boss.timer>1.05){boss.state='chase';boss.timer=0;}
+    } else if (boss.state==='slam') {
+      if(boss.timer>.6&&boss.timer-dt<=.6){for(let i=-2;i<=2;i++)shockwaves.push({x:boss.x+boss.w/2,y:FLOOR_Y-25,w:28,vx:i*170,life:1.2});shake=22;}
+      if(boss.timer>1.1){boss.state='chase';boss.timer=0;}
+    }
+    boss.vy=Math.min(MAX_FALL,boss.vy+GRAVITY*dt); boss.x+=boss.vx*dt; boss.y+=boss.vy*dt;
+    if(boss.y+boss.h>=FLOOR_Y){boss.y=FLOOR_Y-boss.h;boss.vy=0;boss.grounded=true;} boss.x=Math.max(left,Math.min(right,boss.x));
+    const head={x:boss.x+35,y:boss.y,w:boss.w-70,h:62}; const body={x:boss.x,y:boss.y+62,w:boss.w,h:boss.h-62};
+    if(overlap(player,head)&&player.vy>0&&player.y+player.h<=head.y+42){if(damageBoss(playerMode==='gori'?3:1,60))player.vy=-570;}
+    else if(overlap(player,body)||overlap(player,head)) hurt(boss.x+boss.w/2);
+  }
+
   function updateEnemies(dt) {
     for (const enemy of enemies) {
       if (!enemy.alive) { enemy.squish -= dt; continue; }
@@ -519,18 +603,14 @@
       if (drop.y > FLOOR_Y + 30) drop.dead = true;
     }
     droplets = droplets.filter((drop) => !drop.dead && Math.abs(drop.x - cameraX) < 1500);
-    if (boss?.alive) {
-      boss.hit=Math.max(0,boss.hit-dt); boss.x+=boss.vx*dt;
-      if(boss.x<WORLD_WIDTH-1250||boss.x>WORLD_WIDTH-480)boss.vx*=-1;
-      if(overlap(player,boss)) {
-        const attack=playerMode==='king'||(player.vy>160&&player.y+player.h<boss.y+70);
-        if(attack&&boss.hit<=0){boss.hp-=1;boss.hit=.45;player.vy=-480;player.score+=scoreValue(1000);sound('kingHit');emitModeParticles(playerMode==='king'?'king':'lcd',30);if(boss.hp<=0){boss.alive=false;player.score+=scoreValue(10000);say('BOSS REPAIRED!!');sound('bossDown');}}
-        else hurt(boss.x+boss.w/2);
-      }
-    }
+    updateBoss(dt);
   }
 
   function updateObjects(dt) {
+    if(swordItem&&!swordItem.collected&&overlap(player,swordItem)){swordItem.collected=true;player.hasSword=true;ui.attack.classList.remove('hidden');say('BOSS SWORD GET!!\n⚔ ATTACK');sound('swordGet');}
+    projectiles.forEach(p=>{p.x+=p.vx*dt;p.y+=p.vy*dt;p.life-=dt;if(overlap(player,p)){p.life=0;hurt(p.x);}});projectiles=projectiles.filter(p=>p.life>0);
+    shockwaves.forEach(p=>{p.x+=p.vx*dt;p.w=Math.min(80,p.w+90*dt);p.life-=dt;if(!p.friendly&&overlap(player,{x:p.x-p.w/2,y:p.y,w:p.w,h:28})){p.life=0;hurt(p.x);}});shockwaves=shockwaves.filter(p=>p.life>0);
+    combatFx.forEach(p=>p.life-=dt);combatFx=combatFx.filter(p=>p.life>0);
     for (const platform of movingPlatforms) {
       platform.lastX = platform.x; platform.lastY = platform.y;
       const movement = Math.sin(elapsed * platform.speed) * platform.range;
@@ -562,12 +642,13 @@
     for (const item of items) {
       item.phase += dt * 4;
       if (item.collected || !overlap(player,{x:item.x-18,y:item.y-18,w:36,h:36})) continue;
-      item.collected=true; player.score += scoreValue(250); const labels={battery:'HP RECOVER',screen:'LCD +1000',toolbox:'DASH BOOST',fenicoin:'FENI COIN +3000',fire:'INVINCIBLE'};
+      item.collected=true; player.score += scoreValue(250); const labels={battery:'HP RECOVER',screen:'LCD +1000',toolbox:'DASH BOOST',fenicoin:'FENI COIN +3000',fire:'INVINCIBLE',gori:'GORI MATCHO MODE!!'};
       if(item.type==='battery') player.hp=Math.min(3,player.hp+1);
       if(item.type==='screen') player.score+=scoreValue(1000);
       if(item.type==='toolbox') { player.boost=8; player.dash=100; }
       if(item.type==='fenicoin') { player.score+=scoreValue(3000); player.coins+=5; }
       if(item.type==='fire') player.invincible=8;
+      if(item.type==='gori') applyMode('gori');
       say(labels[item.type]); sound(item.type);
       for(let i=0;i<20;i+=1) sparks.push({x:item.x,y:item.y,vx:(Math.random()-.5)*300,vy:(Math.random()-.5)*300,life:.7,size:4});
     }
@@ -584,7 +665,8 @@
       sound('checkpoint');
       for (let i = 0; i < 28; i += 1) sparks.push({ x: checkpoint.x + 35, y: checkpoint.y + 20, vx: (Math.random() - .5) * 260, vy: (Math.random() - .5) * 260, life: .8, size: 4 });
     }
-    if (player.x + player.w > goal.x && !player.clearTime && (!boss || !boss.alive)) {
+    if (boss?.alive && player.x + player.w > goal.x - 20) { player.x=goal.x-player.w-20; player.vx=Math.min(0,player.vx); if(bossIntro>.8)say('GOAL LOCKED\nボスを倒せ！'); }
+    if (player.x + player.w > goal.x && !player.clearTime && (!boss || (!boss.alive&&!bossGate.closed))) {
       player.clearTime = .001; player.vx = 0; player.score += Math.ceil(remainingTime) * 25; sound('goal');
       say('STAGE CLEAR!!');
       for(let i=0;i<100;i+=1) confetti.push({x:cameraX+Math.random()*1280,y:-Math.random()*500,vx:(Math.random()-.5)*100,vy:100+Math.random()*180,life:4,color:['#ff3b20','#ffd338','#41d9ec','#fff'][i%4]});
@@ -603,8 +685,10 @@
 
   function update(dt) {
     if (mode !== 'playing' || paused) return;
+    if(hitStop>0){hitStop=Math.max(0,hitStop-dt);return;}
     if (slowMotion > 0) { slowMotion = Math.max(0, slowMotion - dt); dt *= .25; }
     elapsed += dt;
+    if(bossIntro)bossIntro+=dt;
     updateModeTimer(dt);
     remainingTime = Math.max(0, remainingTime - dt);
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
@@ -628,6 +712,7 @@
     ui.score.textContent = String(player.score).padStart(6, '0');
     ui.timer.textContent = String(Math.ceil(remainingTime)).padStart(3, '0');
     ui.dashGauge.value = player.dash;
+    if(boss){ui.bossHp.style.width=`${Math.max(0,boss.hp/boss.maxHp*100)}%`;ui.attack.textContent=playerMode==='gori'?'👊 PUNCH':'⚔ ATTACK';ui.attack.classList.toggle('punch',playerMode==='gori');}
     if (playerMode !== 'normal') { ui.modeTimer.textContent = `${MODE_NAMES[playerMode]}  ${Math.ceil(modeTimer)}`; ui.modeHud.classList.remove('hidden'); }
   }
 
@@ -677,9 +762,14 @@
     transformItems.forEach(drawTransformItem);
     checkpoints.forEach(drawCheckpoint);
     drawGoal();
+    if(swordItem&&!swordItem.collected){ctx.save();ctx.shadowColor='#fff34a';ctx.shadowBlur=25;ctx.font='52px Arial';ctx.fillText('⚔',swordItem.x,swordItem.y+45);ctx.restore();}
+    if(bossGate?.closed){ctx.fillStyle='#ff3d31';ctx.shadowColor='#ff2c22';ctx.shadowBlur=18;for(let y=bossGate.y;y<FLOOR_Y;y+=34)ctx.fillRect(bossGate.x,y,bossGate.w,18);ctx.shadowBlur=0;}
     enemies.forEach(drawEnemy);
-    if(boss?.alive) drawBoss();
+    if(boss?.intro && (boss.alive || boss.defeat<.7)) drawBoss();
     droplets.forEach(drawDroplet);
+    projectiles.forEach(p=>{ctx.save();ctx.fillStyle='#ffef39';ctx.strokeStyle='#ff3028';ctx.lineWidth=5;ctx.shadowColor='#ff3028';ctx.shadowBlur=18;ctx.beginPath();ctx.arc(p.x,p.y,p.w/2,0,7);ctx.fill();ctx.stroke();ctx.restore();});
+    shockwaves.forEach(p=>{ctx.strokeStyle=p.friendly?'#ffdc35':'#ff3b29';ctx.lineWidth=9;ctx.beginPath();ctx.arc(p.x,p.y,p.w,Math.PI,Math.PI*2);ctx.stroke();});
+    combatFx.forEach(p=>{ctx.save();ctx.globalAlpha=Math.min(1,p.life*3);ctx.strokeStyle=p.type==='punch'?'#ffd335':'#fff';ctx.fillStyle=p.type==='explosion'?'#ff5425':'#ffd335';ctx.lineWidth=12;ctx.shadowColor='#ff3b20';ctx.shadowBlur=30;ctx.beginPath();ctx.arc(p.x,p.y,p.size*(1-p.life*.35),0,7);p.type==='explosion'?ctx.fill():ctx.stroke();ctx.restore();});
     dust.forEach((particle) => { ctx.globalAlpha = particle.life * 1.8; ctx.fillStyle = '#dfc18a'; ctx.beginPath(); ctx.arc(particle.x, particle.y, particle.size, 0, 7); ctx.fill(); });
     ctx.globalAlpha = 1;
     afterimages.forEach((ghost) => { if(ghost.lcd){ctx.save();ctx.globalCompositeOperation='screen';ctx.filter='hue-rotate(135deg) saturate(2)';} drawFeniSprite(ghost.x, ghost.y, ghost.facing, 0, .28 * ghost.life / .28); if(ghost.lcd)ctx.restore(); });
@@ -694,6 +784,7 @@
 
   function drawBoss(){
     ctx.save();ctx.translate(boss.x+boss.w/2,boss.y+boss.h/2);ctx.shadowColor=boss.hit?'#fff':'#ff352d';ctx.shadowBlur=35;
+    if(['charge','jump','shoot','slam'].includes(boss.state)&&boss.timer<.65){ctx.globalAlpha=.65+.35*Math.sin(elapsed*28);ctx.strokeStyle='#fff13d';ctx.lineWidth=10;ctx.beginPath();ctx.arc(0,0,145,0,7);ctx.stroke();}
     ctx.fillStyle=boss.hit?'#fff':'#59204f';drawRoundedRect(-95,-115,190,230,28);ctx.fillStyle='#111d32';ctx.fillRect(-68,-82,136,122);
     ctx.strokeStyle='#ff5544';ctx.lineWidth=8;ctx.beginPath();ctx.moveTo(-45,-45);ctx.lineTo(20,20);ctx.lineTo(-5,70);ctx.moveTo(20,20);ctx.lineTo(55,-55);ctx.stroke();
     ctx.fillStyle='#ffdb32';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText('MEGA BUG',0,104);ctx.restore();
@@ -715,11 +806,12 @@
   }
 
   function drawHazards() {
-    ctx.fillStyle='#e23b32';
-    hazards.forEach((h)=>{ for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+9,h.y);ctx.lineTo(x+18,h.y+h.h);ctx.fill();} });
-    fallingHazards.forEach((r)=>{ctx.fillStyle='#5a4b43';ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();});
-    const sections=[[120,'SECTION 1  BASIC'],[1550,'SECTION 2  PITS + PLATFORMS'],[3100,'SECTION 3  ENEMY CLIMB'],[4800,'SECTION 4  HIGH SPEED'],[6450,'SECTION 5  FINAL CHALLENGE']];
+    hazards.forEach((h)=>{ctx.save();ctx.fillStyle=h.type==='electric'?'#fff22d':'#f02f27';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.shadowColor=h.type==='electric'?'#fff22d':'#ff2018';ctx.shadowBlur=16;for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+9,h.y);ctx.lineTo(x+18,h.y+h.h);ctx.fill();ctx.stroke();}ctx.restore();});
+    fallingHazards.forEach((r)=>{ctx.fillStyle='#ff4a25';ctx.strokeStyle='#ffe42e';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.font='bold 20px Arial';ctx.fillText('!',r.x+r.w/2,r.y+r.h/2+7);});
+    const names=['A  WARM UP','B  PIT RUN','C  VERTICAL','D  SPEED','E  EXTREME'];const sections=names.map((n,i)=>[120+i*WORLD_WIDTH/5,`SECTION ${n}`]);
     ctx.font='bold 22px Arial';ctx.textAlign='left';sections.forEach(([x,label])=>{ctx.fillStyle='#0d385dcc';ctx.fillRect(x,205,390,38);ctx.fillStyle='#fff36a';ctx.fillText(label,x+12,232);});
+    // Every floor gap gets high-contrast caution stripes and visible downward darkness.
+    const sorted=[...staticPlatforms].filter(p=>p.h>80).sort((a,b)=>a.x-b.x);for(let i=0;i<sorted.length-1;i++){const a=sorted[i],b=sorted[i+1];const gx=a.x+a.w,gw=b.x-gx;if(gw>35&&gw<420){ctx.fillStyle='#050810';ctx.fillRect(gx,FLOOR_Y-8,gw,250);for(let x=gx;x<b.x;x+=28){ctx.fillStyle=(Math.floor((x-gx)/28)%2)?'#111':'#ffd32b';ctx.fillRect(x,FLOOR_Y-18,28,10);}}}
   }
 
   function drawScenery() {
@@ -746,7 +838,7 @@
 
   function drawItem(item) {
     if(item.collected) return;
-    const symbols={battery:'🔋',screen:'📱',toolbox:'🧰',fenicoin:'🔥',fire:'🔥'};
+    const symbols={battery:'🔋',screen:'📱',toolbox:'🧰',fenicoin:'🔥',fire:'🔥',gori:'👊'};
     ctx.save(); ctx.translate(item.x,item.y+Math.sin(item.phase)*6); ctx.shadowColor='#fff25b'; ctx.shadowBlur=18;
     ctx.fillStyle=item.type==='fenicoin'?'#ffd338':'#eaffff'; ctx.beginPath(); ctx.arc(0,0,22,0,Math.PI*2); ctx.fill();
     ctx.shadowBlur=0; ctx.font='26px Arial'; ctx.textAlign='center'; ctx.fillText(symbols[item.type],0,9); ctx.restore();
@@ -794,6 +886,7 @@
     if(playerMode==='lcd'){ctx.save();ctx.strokeStyle='#61ecff';ctx.lineWidth=3;ctx.globalAlpha=.6;for(let i=0;i<7;i++){const y=player.y+Math.random()*player.h;ctx.beginPath();ctx.moveTo(player.x-25-Math.random()*120,y);ctx.lineTo(player.x-160-Math.random()*160,y);ctx.stroke();}ctx.restore();}
     if(playerMode==='king'){ctx.save();ctx.globalAlpha=.48;ctx.fillStyle='#ffd52f';ctx.shadowColor='#fff09a';ctx.shadowBlur=35;ctx.beginPath();ctx.ellipse(player.x+player.w/2,player.y+player.h/2,player.w*.8,player.h*.75,0,0,7);ctx.fill();ctx.restore();}
     drawFeniSprite(player.x, player.y, player.facing, player.spin);
+    if(player.attackTime>0){ctx.save();const front=player.facing>0?player.x+player.w:player.x;ctx.translate(front,player.y+55);ctx.scale(player.facing,1);if(playerMode==='gori'){ctx.fillStyle='#ff8b31';ctx.strokeStyle='#7d1d12';ctx.lineWidth=6;ctx.beginPath();ctx.ellipse(48,0,48,25,0,0,7);ctx.fill();ctx.stroke();}else{ctx.strokeStyle='#fff';ctx.lineWidth=9;ctx.shadowColor='#62eaff';ctx.shadowBlur=18;ctx.beginPath();ctx.arc(0,0,92,-1.1,1.1);ctx.stroke();}ctx.restore();}
   }
 
   function drawEnemy(enemy) {
@@ -840,7 +933,7 @@
     animationFrame = requestAnimationFrame(loop);
   }
 
-  const keyMap = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump' };
+  const keyMap = { ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right', Space: 'jump', KeyX:'attack' };
   addEventListener('keydown', (event) => {
     if ((event.code === 'Enter' || event.code === 'Space') && (mode === 'title' || mode === 'clear' || mode === 'gameover')) { event.preventDefault(); startGame(); return; }
     if (event.code === 'Escape' && mode === 'playing') { paused = !paused; return; }

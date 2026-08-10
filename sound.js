@@ -1,7 +1,7 @@
 (() => {
   'use strict';
 
-  const TRACK_URLS = { title: './title.mp3', game: './bgm.mp3' };
+  const TRACK_URLS = { title: './title.mp3', game: './bgm.mp3', boss: './boss.mp3', boss2: './boss2.mp3' };
   const tracks = Object.fromEntries(Object.entries(TRACK_URLS).map(([name, url]) => {
     const audio = new Audio();
     audio.src = url;
@@ -22,7 +22,8 @@
     checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6],
     transformItem: [280, 920, .18], batteryMode: [330, 740, .42], lcdMode: [1050, 480, .38],
     kingMode: [260, 1480, .65], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
-    heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8]
+    heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8],
+    swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24]
   };
 
   function unlock() {
@@ -50,7 +51,8 @@
     if (!name) return;
     const melodies = {
       title: [262, 330, 392, 523, 392, 330, 294, 392],
-      game: [330, 392, 440, 392, 523, 440, 392, 294]
+      game: [330, 392, 440, 392, 523, 440, 392, 294],
+      boss: [110,147,165,123,110,196,165,123], boss2:[147,220,175,247,147,294,220,175]
     };
     synthStep = 0;
     synthTimer = window.setInterval(() => {
@@ -59,7 +61,7 @@
       note(melody[synthStep % melody.length], .16, .018, 'triangle');
       if (synthStep % 2 === 0) note(name === 'game' ? 110 : 131, .2, .012, 'sine');
       synthStep += 1;
-    }, name === 'game' ? 190 : 260);
+    }, name === 'boss2' ? 120 : name === 'boss' ? 150 : name === 'game' ? 190 : 260);
   }
 
   function music(name) {
