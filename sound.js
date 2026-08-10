@@ -21,7 +21,8 @@
     fenicoin: [880, 1500, .3], fire: [340, 980, .3], stomp: [190, 130, .12], damage: [120, 70, .25],
     checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6],
     transformItem: [280, 920, .18], batteryMode: [330, 740, .42], lcdMode: [1050, 480, .38],
-    kingMode: [260, 1480, .65], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12]
+    kingMode: [260, 1480, .65], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
+    heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8]
   };
 
   function unlock() {
