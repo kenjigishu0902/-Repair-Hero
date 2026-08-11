@@ -23,7 +23,8 @@
     transformItem: [280, 920, .18], batteryMode: [330, 740, .42], lcdMode: [1050, 480, .38],
     kingMode: [260, 1480, .65], muscleMode: [95, 1320, .62], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
     heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8],
-    swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24]
+    swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24],
+    crumble:[240,85,.28]
   };
 
   function unlock() {
