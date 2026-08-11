@@ -200,8 +200,14 @@ function testCoreControls() {
 
   game.setStage('1-5');
   game.giveSword();
+  assert.equal(game.state().player.swordPose, 'ready', 'sword holder uses the ready pose');
   game.attack();
   assert.ok(game.state().player.attackTime > 0, 'sword ATTACK activates');
+  assert.equal(game.state().player.swordPose, 'swing', 'sword ATTACK starts with the flaming swing pose');
+  game.step(.18);
+  assert.equal(game.state().player.swordPose, 'finish', 'sword ATTACK advances to the follow-through pose');
+  game.step(.2);
+  assert.equal(game.state().player.swordPose, 'ready', 'sword pose returns to ready after the attack');
 
   game.setStage('1-1');
   const beforeDashWall = game.state();
@@ -284,7 +290,7 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'phoenix_sword.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');

@@ -26,6 +26,21 @@
   }
   const phoenixSwordImage = new Image();
   phoenixSwordImage.src = './phoenix_sword.png';
+  const swordPoseImages = {};
+  for (const [name, source] of Object.entries({
+    ready: './feni_sword_ready.png',
+    swing: './feni_sword_swing.png',
+    finish: './feni_sword_finish.png'
+  })) {
+    swordPoseImages[name] = new Image();
+    swordPoseImages[name].src = source;
+  }
+  const SWORD_ATTACK_DURATION = .30;
+  const SWORD_POSE_META = {
+    ready: { anchorX: .558, anchorY: .965, size: 199 },
+    swing: { anchorX: .478, anchorY: .821, size: 226 },
+    finish: { anchorX: .447, anchorY: .774, size: 245 }
+  };
   const MODE_DURATIONS = { battery: 25, lcd: 25, king: 20, muscle: 25 };
   const MODE_NAMES = { battery: 'BATTERY MODE', lcd: 'LCD MODE', king: 'KING MODE', muscle: 'GORI MACHO MODE' };
   const GRAVITY = 1800;
@@ -712,7 +727,7 @@
   function performAttack() {
     if ((!player.hasSword && playerMode !== 'muscle') || player.attackCooldown > 0 || player.dead) return;
     const punch = playerMode === 'muscle';
-    player.attackTime = punch ? .86 : .24; player.attackCooldown = punch ? 1.08 : .48;
+    player.attackTime = punch ? .86 : SWORD_ATTACK_DURATION; player.attackCooldown = punch ? 1.08 : .48;
     player.rushPulse = punch ? .86 : 0;
     const range = punch ? Math.max(260,Math.min(1120,viewportWidth*.72)) : 105;
     const contactRange = punch ? 155 : range;
@@ -1356,9 +1371,30 @@
     const stretchX = player.state === 'jump' ? .92 : player.state === 'doubleJump' ? .88 : 1;
     const celebration = player.state === 'clear' ? 1 + Math.sin(player.clearTime * 10) * .09 : 1;
     ctx.save(); ctx.globalAlpha *= alpha; if(player.state==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing * stretchX * celebration,squash * celebration);
+    const swordPose = currentSwordPose();
+    const swordPoseImage = swordPose ? swordPoseImages[swordPose] : null;
+    if (swordPoseImage?.complete && swordPoseImage.naturalWidth) {
+      const meta = SWORD_POSE_META[swordPose];
+      ctx.drawImage(
+        swordPoseImage,
+        -meta.anchorX * meta.size,
+        player.h / 2 - meta.anchorY * meta.size,
+        meta.size,
+        meta.size
+      );
+      ctx.restore();
+      return;
+    }
     const currentImage = playerMode === 'muscle' && player.attackTime > 0 ? playerImages.musclePunch : playerImages[playerMode];
     if (currentImage.complete && currentImage.naturalWidth) ctx.drawImage(currentImage,-player.w*.62,-player.h*.66,player.w*1.24,player.h*1.32);
     ctx.restore();
+  }
+
+  function currentSwordPose() {
+    if (!player?.hasSword || playerMode !== 'normal') return null;
+    if (player.attackTime <= 0) return 'ready';
+    const progress = 1 - Math.min(1, player.attackTime / SWORD_ATTACK_DURATION);
+    return progress < .55 ? 'swing' : 'finish';
   }
 
   function drawPlayer() {
@@ -1367,7 +1403,7 @@
     if(playerMode==='lcd'&&player.shields>0){ctx.save();ctx.translate(player.x+player.w/2,player.y+player.h/2);ctx.globalAlpha=.2+(player.shieldHit>0?.38:0);ctx.fillStyle='#65eaff';ctx.shadowColor='#42dfff';ctx.shadowBlur=30;for(let layer=0;layer<player.shields;layer++){ctx.beginPath();ctx.ellipse(0,0,player.w*(.78+layer*.22),player.h*(.69+layer*.12),0,0,7);ctx.fill();ctx.globalAlpha+=.1;ctx.strokeStyle=layer===0?'#d8ffff':'#48dfff';ctx.lineWidth=3;ctx.stroke();}ctx.restore();}
     if(playerMode==='king'){ctx.save();ctx.globalAlpha=.48;ctx.fillStyle='#ffd52f';ctx.shadowColor='#fff09a';ctx.shadowBlur=35;ctx.beginPath();ctx.ellipse(player.x+player.w/2,player.y+player.h/2,player.w*.8,player.h*.75,0,0,7);ctx.fill();ctx.restore();}
     drawFeniSprite(player.x, player.y, player.facing, player.spin);
-    if(player.attackTime>0){ctx.save();const front=player.facing>0?player.x+player.w:player.x;ctx.translate(front,player.y+55);ctx.scale(player.facing,1);if(playerMode==='muscle'){ctx.fillStyle='#ff8b31';ctx.strokeStyle='#7d1d12';ctx.lineWidth=6;ctx.beginPath();ctx.ellipse(48,0,48,25,0,0,7);ctx.fill();ctx.stroke();}else{const swing=1-Math.min(1,player.attackTime/.24);ctx.save();ctx.rotate(-1.05+swing*2.1);ctx.shadowColor='#ff491d';ctx.shadowBlur=28;if(phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth)ctx.drawImage(phoenixSwordImage,-23,-112,72,128);ctx.restore();ctx.strokeStyle='#fff36b';ctx.lineWidth=12;ctx.shadowColor='#ff3b18';ctx.shadowBlur=28;ctx.beginPath();ctx.arc(0,0,105,-1.18,1.18);ctx.stroke();ctx.strokeStyle='#ff5a1f';ctx.lineWidth=6;ctx.beginPath();ctx.arc(0,0,120,-1.08,1.08);ctx.stroke();}ctx.restore();}
+    if(player.attackTime>0){ctx.save();const front=player.facing>0?player.x+player.w:player.x;ctx.translate(front,player.y+55);ctx.scale(player.facing,1);if(playerMode==='muscle'){ctx.fillStyle='#ff8b31';ctx.strokeStyle='#7d1d12';ctx.lineWidth=6;ctx.beginPath();ctx.ellipse(48,0,48,25,0,0,7);ctx.fill();ctx.stroke();}else if(playerMode!=='normal'){const swing=1-Math.min(1,player.attackTime/SWORD_ATTACK_DURATION);ctx.save();ctx.rotate(-1.05+swing*2.1);ctx.shadowColor='#ff491d';ctx.shadowBlur=28;if(phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth)ctx.drawImage(phoenixSwordImage,-23,-112,72,128);ctx.restore();ctx.strokeStyle='#fff36b';ctx.lineWidth=12;ctx.shadowColor='#ff3b18';ctx.shadowBlur=28;ctx.beginPath();ctx.arc(0,0,105,-1.18,1.18);ctx.stroke();ctx.strokeStyle='#ff5a1f';ctx.lineWidth=6;ctx.beginPath();ctx.arc(0,0,120,-1.08,1.08);ctx.stroke();}ctx.restore();}
   }
 
   function drawEnemy(enemy) {
@@ -1481,10 +1517,10 @@
       teleport:(x,y)=>{player.x=Math.max(0,Math.min(WORLD_WIDTH-player.w,x));if(Number.isFinite(y))player.y=y;player.vx=0;player.vy=0;},
       respawn:()=>respawnAtCheckpoint('DEBUG RESPAWN'),
       defeatBoss:()=>{if(boss){boss.hp=1;boss.hit=0;boss.state='chase';boss.intro=true;damageBoss(99);}},
-      state:()=>({mode,currentStage:STAGES[currentStage].id,player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,grounded:player.grounded,jumpCount:player.jumpCount,dash:player.dash,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime},
+      state:()=>({mode,currentStage:STAGES[currentStage].id,player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,grounded:player.grounded,jumpCount:player.jumpCount,dash:player.dash,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive).length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,6).map((enemy)=>({type:enemy.type,x:enemy.x,y:enemy.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),shockwaves:shockwaves.length,rushTrails:rushTrails.length,
         boss:boss?{x:boss.x,y:boss.y,hp:boss.hp,alive:boss.alive,defeated:bossDefeated,gateClosed:bossGate.closed,goalUnlocked}:null,chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
-        world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),sword:{loaded:phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight}}})
+        world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),sword:{loaded:phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}]))}})
     });
   }
 
