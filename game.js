@@ -37,9 +37,9 @@
   }
   const SWORD_ATTACK_DURATION = .30;
   const SWORD_POSE_META = {
-    ready: { anchorX: .558, anchorY: .965, size: 199 },
-    swing: { anchorX: .478, anchorY: .821, size: 226 },
-    finish: { anchorX: .447, anchorY: .774, size: 245 }
+    ready: { anchorX: .558, anchorY: .965, size: 155 },
+    swing: { anchorX: .478, anchorY: .821, size: 176 },
+    finish: { anchorX: .447, anchorY: .774, size: 191 }
   };
   const MODE_DURATIONS = { battery: 25, lcd: 25, king: 20, muscle: 25 };
   const MODE_NAMES = { battery: 'BATTERY MODE', lcd: 'LCD MODE', king: 'KING MODE', muscle: 'GORI MACHO MODE' };
@@ -734,7 +734,7 @@
     const front=player.facing>0?player.x+player.w:player.x;
     const hitbox={x:player.facing>0?front-4:front-contactRange+4,y:player.y+28,w:contactRange,h:44};
     sound(punch?'rushPunch':'sword');
-    combatFx.push({x:punch?front+player.facing*range*.62:player.facing>0?hitbox.x+range:hitbox.x,y:hitbox.y+22,life:punch?.48:.25,size:range,type:punch?'punch':'slash'});
+    if (punch || playerMode !== 'normal') combatFx.push({x:punch?front+player.facing*range*.62:player.facing>0?hitbox.x+range:hitbox.x,y:hitbox.y+22,life:punch?.48:.25,size:range,type:punch?'punch':'slash'});
     if(punch){
       shake=28;hitStop=.045;slowMotion=.08;
       for(let i=0;i<42;i++){
