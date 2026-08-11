@@ -19,18 +19,18 @@
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
       <div class="dash-meter"><span>DASH</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
-      <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b></div>
+      <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×2</em></div>
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b>MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGES 1-1 — 1-7</div>
+      <div class="title-badge">STAGES 1-1 — 1-8</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
       <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">地下・海・空を突破して大型ボスを修理せよ！</p>
+      <p class="help">地下・海・空・迫る壁を突破して大型ボスを修理せよ！</p>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -54,7 +54,8 @@
         <button data-input="dashRight" class="dash" aria-label="右へダッシュ">DASH →</button>
         <button data-input="left" aria-label="左へ移動">←</button>
         <button data-input="right" aria-label="右へ移動">→</button>
-        <button data-input="down" class="water-only" aria-label="下へ泳ぐ">↓</button>
+        <button data-input="up" class="vertical-only" aria-label="上へ移動">↑</button>
+        <button data-input="down" class="vertical-only" aria-label="下へ移動">↓</button>
       </div>
       <div class="action-pad">
         <button id="attack" data-input="attack" class="attack hidden">⚔<br>ATTACK</button>

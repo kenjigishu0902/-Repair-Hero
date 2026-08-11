@@ -1,7 +1,10 @@
 (() => {
   'use strict';
 
-  const TRACK_URLS = { title: './title.mp3', game: './bgm.mp3', boss: './boss.mp3', boss2: './boss2.mp3' };
+  // The repository currently ships no MP3 files. Default to the built-in Web Audio
+  // score so GitHub Pages never produces four avoidable 404 requests. Real tracks
+  // can still be supplied before this script through window.REPAIR_HERO_TRACKS.
+  const TRACK_URLS = window.REPAIR_HERO_TRACKS || {};
   const tracks = Object.fromEntries(Object.entries(TRACK_URLS).map(([name, url]) => {
     const audio = new Audio();
     audio.src = url;
@@ -24,7 +27,8 @@
     kingMode: [260, 1480, .65], muscleMode: [95, 1320, .62], transformEnd: [720, 240, .3], kingFlight: [520, 660, .12],
     heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8],
     swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24],
-    crumble:[240,85,.28], itemWarning:[760,980,.18], itemSpawn:[420,1180,.28], enemyDown:[170,520,.2]
+    crumble:[240,85,.28], itemWarning:[760,980,.18], itemSpawn:[420,1180,.28], enemyDown:[170,520,.2],
+    shieldBreak:[1480,260,.32], rushPunch:[95,1480,.42], wallWarning:[70,180,.48], wallImpact:[55,45,.55]
   };
 
   function unlock() {
@@ -69,9 +73,10 @@
     unlock();
     clearInterval(synthTimer);
     Object.values(tracks).forEach((track) => { track.pause(); track.currentTime = 0; });
-    currentName = name && tracks[name] ? name : null;
+    currentName = name || null;
     if (!currentName) return;
     const track = tracks[currentName];
+    if (!track) { startSynthMusic(currentName); return; }
     track.currentTime = 0;
     track.play().catch(() => startSynthMusic(currentName));
     track.addEventListener('error', () => { if (currentName === name) startSynthMusic(name); }, { once: true });
