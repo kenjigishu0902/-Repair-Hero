@@ -33,6 +33,7 @@
   let height = 720;
   let dpr = 1;
   let scale = 1;
+  let baseScale = 1;
   let viewportWidth = 1280;
   let viewportHeight = 720;
   let cameraY = 0;
@@ -202,8 +203,10 @@
     canvas.height = Math.round(height * dpr);
     canvas.style.width = `${width}px`;
     canvas.style.height = `${height}px`;
-    // Portrait uses a dedicated close camera: Feni occupies roughly 22% of screen height.
-    scale = portrait ? height / 520 : height / 720;
+    // Portrait shows 680 world pixels vertically: Feni is about 16.5% of the screen,
+    // without shrinking UI or faking the camera with a CSS transform.
+    baseScale = portrait ? height / 680 : height / 720;
+    scale = baseScale;
     viewportWidth = width / scale;
     viewportHeight = height / scale;
     offsetX = Math.max(0, (width - viewportWidth * scale) / 2);
@@ -666,13 +669,19 @@
     }
     for (const platform of fragilePlatforms) {
       if (platform.kind === 'vanish') platform.active = Math.sin(elapsed * 1.7 + platform.x) > -.2;
-      if (platform.kind === 'crumble' && platform.timer) { platform.timer += dt; if (platform.timer > .65) platform.active = false; if (platform.timer > 3.2) { platform.timer=0; platform.active=true; } }
+      if (platform.kind === 'crumble' && platform.timer) {
+        platform.timer += dt;
+        if (platform.timer > .42 && !platform.warned) { platform.warned=true; sound('crumble'); }
+        if (platform.timer > .72) platform.active = false;
+        if (platform.timer > 3.2) { platform.timer=0; platform.active=true; platform.warned=false; }
+      }
     }
     for (const rock of fallingHazards) {
       rock.delay -= dt;
-      if (rock.delay <= 0) { rock.vy += 900*dt; rock.y += rock.vy*dt; }
+      rock.warn = Math.max(0, Math.min(1, 1 - rock.delay / .75));
+      if (rock.delay <= 0) { rock.warn=1; rock.vy += 900*dt; rock.y += rock.vy*dt; }
       if (overlap(player, rock)) hurt(rock.x);
-      if (rock.y > 730) { rock.y=rock.baseY; rock.vy=0; rock.delay=2.8; }
+      if (rock.y > 730) { rock.y=rock.baseY; rock.vy=0; rock.delay=2.8; rock.warn=0; }
     }
     for (const spike of hazards) if (overlap(player, spike)) hurt(spike.x + spike.w/2);
     for (const coin of coins) {
@@ -743,11 +752,28 @@
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     updateObjects(dt);
     if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
-    const lead = playerMode === 'lcd' ? Math.max(-viewportWidth*.22,Math.min(viewportWidth*.22, player.vx*.2)) : player.vx*.06;
-    const targetCamera = Math.max(0, Math.min(WORLD_WIDTH - viewportWidth, player.x + lead - viewportWidth * (portrait ? .39 : player.facing > 0 ? .34 : .56)));
+    // Frame both fighters in the boss arena. The zoom is eased and changes the
+    // real world viewport/camera range rather than scaling the DOM canvas.
+    let targetScale = baseScale;
+    if (portrait && boss?.alive && boss.intro) {
+      const combatSpan = Math.abs((boss.x + boss.w/2) - (player.x + player.w/2)) + boss.w + 150;
+      targetScale = Math.min(baseScale, width / Math.max(width/baseScale, combatSpan));
+      targetScale = Math.max(height / 820, targetScale);
+    }
+    scale += (targetScale-scale)*Math.min(1,dt*4.5);
+    viewportWidth=width/scale; viewportHeight=height/scale;
+    const fast = Math.abs(player.vx) > 360 || playerMode === 'lcd';
+    const leadLimit = viewportWidth*(fast ? .30 : .17);
+    const lead = Math.max(-leadLimit,Math.min(leadLimit,player.vx*(fast ? .24 : .11)));
+    const anchor = portrait ? (player.facing > 0 ? .34 : .66) : (player.facing > 0 ? .34 : .56);
+    let focusX = player.x + lead - viewportWidth*anchor;
+    if (boss?.alive && boss.intro && Math.abs(boss.x-player.x)<viewportWidth*1.25) focusX=(player.x+player.w/2+boss.x+boss.w/2)/2-viewportWidth/2;
+    const targetCamera = Math.max(0, Math.min(Math.max(0,WORLD_WIDTH - viewportWidth), focusX));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * (playerMode === 'lcd' ? 10 : 7));
-    const verticalAnchor = playerMode==='king' ? .55 : player.vy < -100 ? .68 : player.vy > 180 ? .48 : .61;
-    const targetCameraY = portrait ? Math.max(-130, Math.min(260, player.y - viewportHeight*verticalAnchor)) : 0;
+    const jumping=Math.abs(player.vy)>100;
+    const verticalAnchor = playerMode==='king' ? .55 : player.vy < -100 ? .64 : player.vy > 180 ? .44 : .57;
+    const verticalMargin=jumping?210:150;
+    const targetCameraY = portrait ? Math.max(-verticalMargin, Math.min(300, player.y - viewportHeight*verticalAnchor)) : 0;
     cameraY += (targetCameraY - cameraY) * Math.min(1, dt * (playerMode==='lcd'?11:6));
     shake *= Math.pow(.02, dt);
     landingShake *= Math.pow(.01, dt);
@@ -808,8 +834,8 @@
   function drawWorld() {
     ctx.save(); ctx.translate(-cameraX, -cameraY);
     for (const platform of staticPlatforms) drawPlatform(platform);
-    for (const platform of movingPlatforms) { drawPlatform(platform, true); }
-    fragilePlatforms.forEach((platform) => { if (platform.active) drawPlatform(platform, true); });
+    for (const platform of movingPlatforms) drawPlatform(platform, 'moving');
+    fragilePlatforms.forEach((platform) => { if (platform.active) drawPlatform(platform, 'fragile'); });
     jumpPads.forEach(drawJumpPad);
     drawHazards();
     drawScenery();
@@ -818,7 +844,7 @@
     transformItems.forEach(drawTransformItem);
     checkpoints.forEach(drawCheckpoint);
     breakables.forEach(w=>{if(!w.alive)return;ctx.fillStyle='#8b5737';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#ffd335';ctx.lineWidth=4;ctx.strokeRect(w.x,w.y,w.w,w.h);ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.fillText('BREAK',w.x+5,w.y+42);});
-    currents.forEach(c=>{ctx.save();ctx.globalAlpha=.28;ctx.fillStyle=c.force>0?'#8ff7ff':'#a7d2ff';ctx.fillRect(c.x,c.y,c.w,c.h);ctx.globalAlpha=.8;ctx.font='28px Arial';for(let x=c.x+30;x<c.x+c.w;x+=80)ctx.fillText(c.force>0?'→':'←',x,c.y+c.h/2);ctx.restore();});
+    currents.forEach(c=>{ctx.save();ctx.globalAlpha=.32;ctx.fillStyle=c.force>0?'#48eaff':'#83aaff';ctx.fillRect(c.x,c.y,c.w,c.h);ctx.globalAlpha=.95;ctx.fillStyle='#efffff';ctx.shadowColor='#54eaff';ctx.shadowBlur=12;ctx.font='bold 30px Arial';for(let x=c.x+30;x<c.x+c.w;x+=80)ctx.fillText(c.force>0?'→':'←',x,c.y+c.h/2+Math.sin(elapsed*5+x)*8);ctx.restore();});
     bubbles.forEach(b=>{ctx.save();ctx.strokeStyle='#d7ffff';ctx.lineWidth=4;ctx.shadowColor='#a8ffff';ctx.shadowBlur=15;ctx.beginPath();ctx.arc(b.x,b.y+Math.sin(b.phase)*12,b.r,0,7);ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 11px Arial';ctx.fillText('O₂',b.x-9,b.y+4);ctx.restore();});
     drawGoal();
     if(swordItem&&!swordItem.collected){ctx.save();ctx.shadowColor='#fff34a';ctx.shadowBlur=25;ctx.font='52px Arial';ctx.fillText('⚔',swordItem.x,swordItem.y+45);ctx.restore();}
@@ -850,13 +876,19 @@
     ctx.fillStyle='#180c22';ctx.fillRect(boss.x,boss.y-28,boss.w,14);ctx.fillStyle='#ff493e';ctx.fillRect(boss.x,boss.y-28,boss.w*(boss.hp/boss.maxHp),14);
   }
 
-  function drawPlatform(platform, moving = false) {
+  function drawPlatform(platform, kind = 'safe') {
     if (platform.x + platform.w < cameraX - 80 || platform.x > cameraX + 1360) return;
-    ctx.fillStyle = moving ? '#3b5d65' : '#4d4c43'; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
-    ctx.fillStyle = moving ? '#ffc62e' : '#9a8159'; ctx.fillRect(platform.x, platform.y, platform.w, Math.min(14, platform.h));
-    ctx.fillStyle = '#d8b76f';
+    const moving=kind==='moving', fragile=kind==='fragile';
+    let jitter=0;if(fragile&&platform.timer)jitter=Math.sin(elapsed*55)*Math.min(5,platform.timer*9);
+    ctx.save();ctx.translate(jitter,0);
+    ctx.fillStyle = moving ? '#244f60' : fragile ? '#6b4540' : '#4d4c43'; ctx.fillRect(platform.x, platform.y, platform.w, platform.h);
+    ctx.strokeStyle=moving?'#65efff':fragile?'#ff6a4a':'#d9bd7c';ctx.lineWidth=3;ctx.strokeRect(platform.x,platform.y,platform.w,platform.h);
+    ctx.fillStyle = moving ? '#45e5ff' : fragile ? '#e96a43' : '#9a8159'; ctx.fillRect(platform.x, platform.y, platform.w, Math.min(14, platform.h));
+    ctx.fillStyle = fragile&&platform.timer>.42&&Math.floor(elapsed*14)%2?'#fff':'#d8b76f';
     for (let x = platform.x + 8; x < platform.x + platform.w; x += 38) ctx.fillRect(x, platform.y + 4, 22, 4);
-    if (moving) { ctx.fillStyle = '#172f3a'; ctx.font = 'bold 14px Arial'; ctx.fillText('◀  GEAR  ▶', platform.x + 10, platform.y + 15); }
+    if (moving) {ctx.shadowColor='#54eaff';ctx.shadowBlur=10;ctx.fillStyle='#071d29';ctx.font='bold 14px Arial';ctx.fillText(platform.axis==='x'?'←  MOVE  →':'↕  MOVE',platform.x+8,platform.y+15);}
+    if(fragile){ctx.strokeStyle='#2b1717';ctx.lineWidth=3;const crack=Math.min(1,(platform.timer||0)/.65);ctx.beginPath();ctx.moveTo(platform.x+platform.w*.18,platform.y);ctx.lineTo(platform.x+platform.w*(.37+crack*.12),platform.y+platform.h);ctx.lineTo(platform.x+platform.w*.66,platform.y+3);ctx.stroke();ctx.fillStyle='#ffe238';ctx.font='bold 13px Arial';ctx.fillText('⚠',platform.x+platform.w/2-7,platform.y-5);}
+    ctx.restore();
   }
 
   function drawJumpPad(pad) {
@@ -866,15 +898,16 @@
 
   function drawHazards() {
     hazards.forEach((h)=>{ctx.save();ctx.globalAlpha=.82+.18*Math.sin(elapsed*9+h.phase);ctx.lineWidth=4;ctx.shadowBlur=20;
-      if(h.type==='spinner'){ctx.translate(h.x+h.w/2,h.y+h.h/2);ctx.rotate(elapsed*3+h.phase);ctx.strokeStyle='#ffe329';ctx.shadowColor='#ff3020';for(let a=0;a<4;a++){ctx.rotate(Math.PI/2);ctx.fillStyle=a%2?'#111':'#ffd32b';ctx.fillRect(0,-7,h.w*.72,14);}ctx.beginPath();ctx.arc(0,0,12,0,7);ctx.stroke();}
+      ctx.fillStyle='#111';ctx.fillRect(h.x,h.y+h.h-6,h.w,8);for(let x=h.x;x<h.x+h.w;x+=16){ctx.fillStyle=((x-h.x)/16)%2<1?'#ffd62e':'#111';ctx.fillRect(x,h.y+h.h-6,16,8);}
+      if(h.type==='spinner'){ctx.translate(h.x+h.w/2,h.y+h.h/2);ctx.rotate(elapsed*3+h.phase);ctx.strokeStyle='#ffe329';ctx.shadowColor='#ff3020';for(let a=0;a<4;a++){ctx.rotate(Math.PI/2);ctx.fillStyle=a%2?'#111':'#ffd32b';ctx.fillRect(0,-7,h.w*.72,14);}ctx.beginPath();ctx.arc(0,0,12,0,7);ctx.stroke();if(stageTheme==='sea'){ctx.rotate(-elapsed*3-h.phase);ctx.fillStyle=Math.floor(elapsed*6)%2?'#ff241d':'#fff';ctx.shadowColor='#ff241d';ctx.shadowBlur=30;ctx.beginPath();ctx.arc(0,0,7,0,7);ctx.fill();}}
       else if(h.type==='fire'){ctx.fillStyle='#ff3b18';ctx.strokeStyle='#ffe52d';ctx.shadowColor='#ff3b18';for(let x=h.x;x<h.x+h.w;x+=22){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.quadraticCurveTo(x+4,h.y-18-Math.sin(elapsed*12)*8,x+11,h.y);ctx.lineTo(x+22,h.y+h.h);ctx.fill();ctx.stroke();}}
-      else {ctx.fillStyle=h.type==='electric'?'#fff22d':'#f02f27';ctx.strokeStyle='#fff';ctx.shadowColor=h.type==='electric'?'#45eaff':'#ff2018';for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+9,h.y);ctx.lineTo(x+18,h.y+h.h);ctx.fill();ctx.stroke();}}
+      else {ctx.fillStyle=h.type==='electric'?'#dffeff':'#f02f27';ctx.strokeStyle=h.type==='electric'?'#62ddff':'#fff36a';ctx.shadowColor=h.type==='electric'?'#45eaff':'#ff2018';for(let x=h.x;x<h.x+h.w;x+=18){ctx.beginPath();ctx.moveTo(x,h.y+h.h);ctx.lineTo(x+9,h.y);ctx.lineTo(x+18,h.y+h.h);ctx.fill();ctx.stroke();}}
       ctx.restore();});
-    fallingHazards.forEach((r)=>{ctx.fillStyle='#ff4a25';ctx.strokeStyle='#ffe42e';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.font='bold 20px Arial';ctx.fillText('!',r.x+r.w/2,r.y+r.h/2+7);});
+    fallingHazards.forEach((r)=>{ctx.save();if(r.warn>0){ctx.globalAlpha=.45+.5*Math.sin(elapsed*18);ctx.fillStyle='#ff281e';ctx.strokeStyle='#fff238';ctx.lineWidth=5;ctx.shadowColor='#ff281e';ctx.shadowBlur=24;ctx.beginPath();ctx.ellipse(r.x+r.w/2,FLOOR_Y-5,34+20*r.warn,12+8*r.warn,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText('!',r.x+r.w/2,FLOOR_Y-25);}ctx.globalAlpha=1;ctx.fillStyle='#ff4a25';ctx.strokeStyle='#ffe42e';ctx.lineWidth=5;ctx.beginPath();ctx.arc(r.x+r.w/2,r.y+r.h/2,r.w/2,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.fillStyle='#111';ctx.font='bold 20px Arial';ctx.textAlign='center';ctx.fillText('!',r.x+r.w/2,r.y+r.h/2+7);ctx.restore();});
     const names=['A  WARM UP','B  PIT RUN','C  VERTICAL','D  SPEED','E  EXTREME'];const sections=names.map((n,i)=>[120+i*WORLD_WIDTH/5,`SECTION ${n}`]);
     ctx.font='bold 22px Arial';ctx.textAlign='left';sections.forEach(([x,label])=>{ctx.fillStyle='#0d385dcc';ctx.fillRect(x,205,390,38);ctx.fillStyle='#fff36a';ctx.fillText(label,x+12,232);});
     // Every floor gap gets high-contrast caution stripes and visible downward darkness.
-    const sorted=[...staticPlatforms].filter(p=>p.h>80).sort((a,b)=>a.x-b.x);for(let i=0;i<sorted.length-1;i++){const a=sorted[i],b=sorted[i+1];const gx=a.x+a.w,gw=b.x-gx;if(gw>35&&gw<420){ctx.fillStyle='#050810';ctx.fillRect(gx,FLOOR_Y-8,gw,250);for(let x=gx;x<b.x;x+=28){ctx.fillStyle=(Math.floor((x-gx)/28)%2)?'#111':'#ffd32b';ctx.fillRect(x,FLOOR_Y-18,28,10);}}}
+    const sorted=[...staticPlatforms].filter(p=>p.h>80).sort((a,b)=>a.x-b.x);for(let i=0;i<sorted.length-1;i++){const a=sorted[i],b=sorted[i+1];const gx=a.x+a.w,gw=b.x-gx;if(gw>35&&gw<420){const gy=Math.min(a.y,b.y);ctx.fillStyle='#02030a';ctx.fillRect(gx,gy-5,gw,420);for(let x=gx;x<b.x;x+=28){ctx.fillStyle=(Math.floor((x-gx)/28)%2)?'#111':'#ffd32b';ctx.fillRect(x,gy-16,28,12);}ctx.fillStyle='#ff3a28';ctx.font='bold 18px Arial';ctx.fillText('⚠',gx+4,gy-23);ctx.fillText('⚠',b.x-24,gy-23);}}
   }
 
   function drawScenery() {
@@ -955,6 +988,7 @@
   function drawEnemy(enemy) {
     if (!enemy.alive && enemy.squish <= 0) return;
     ctx.save(); ctx.translate(enemy.x + enemy.w / 2, enemy.y + enemy.h / 2);
+    if(stageTheme==='sea'||stageTheme==='underground'){ctx.shadowColor=enemy.type==='wet'?'#54efff':'#ff6550';ctx.shadowBlur=18;ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(0,0,enemy.w*.62,enemy.h*.62,0,0,7);ctx.stroke();}
     if (!enemy.alive) ctx.scale(1.3, .25);
     if (enemy.type === 'cracked') {
       ctx.fillStyle = '#657684'; drawRoundedRect(-23, -30, 46, 60, 7); ctx.fillStyle = '#162d3a'; ctx.fillRect(-18, -23, 36, 43);
