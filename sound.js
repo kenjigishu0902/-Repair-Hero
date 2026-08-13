@@ -28,7 +28,8 @@
     heal: [660, 990, .18], kingHit: [240, 1180, .22], bossDown: [160, 1320, .8],
     swordGet:[440,1320,.35],sword:[820,260,.14],swordHit:[180,900,.18],punch:[130,70,.16],punchHit:[75,420,.3],bossShot:[620,120,.24],
     crumble:[240,85,.28], itemWarning:[760,980,.18], itemSpawn:[420,1180,.28], enemyDown:[170,520,.2],
-    shieldBreak:[1480,260,.32], rushPunch:[95,1480,.42], wallWarning:[70,180,.48], wallImpact:[55,45,.55]
+    shieldBreak:[1480,260,.32], rushPunch:[95,1480,.42], wallWarning:[70,180,.48], wallImpact:[55,45,.55],
+    attack:[980,190,.2],enemyAttack:[240,860,.19],drop:[310,150,.1],charge:[180,560,.16],revive:[260,1320,.55]
   };
 
   function unlock() {
@@ -56,7 +57,7 @@
     if (!name) return;
     const melodies = {
       title: [262, 330, 392, 523, 392, 330, 294, 392],
-      game: [330, 392, 440, 392, 523, 440, 392, 294],
+      game: [220, 330, 392, 440, 523, 659, 587, 440, 392, 294, 330, 494, 587, 659, 784, 659],
       boss: [110,147,165,123,110,196,165,123], boss2:[147,220,175,247,147,294,220,175]
     };
     synthStep = 0;
@@ -64,9 +65,10 @@
       if (currentName !== name) return;
       const melody = melodies[name];
       note(melody[synthStep % melody.length], .16, .018, 'triangle');
-      if (synthStep % 2 === 0) note(name === 'game' ? 110 : 131, .2, .012, 'sine');
+      if (synthStep % 2 === 0) note(name === 'game' ? [110,147,165,196][Math.floor(synthStep/2)%4] : 131, .2, name==='game'?.017:.012, 'sine');
+      if(name==='game'&&synthStep%4===3)note(melody[(synthStep+4)%melody.length]*.5,.22,.009,'sawtooth');
       synthStep += 1;
-    }, name === 'boss2' ? 120 : name === 'boss' ? 150 : name === 'game' ? 190 : 260);
+    }, name === 'boss2' ? 120 : name === 'boss' ? 150 : name === 'game' ? 155 : 260);
   }
 
   function music(name) {
@@ -88,7 +90,7 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
     gain.gain.setValueAtTime(name === 'doubleJump' ? .06 : .035, context.currentTime);

@@ -43,8 +43,8 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
     'dashGauge', 'notice', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
-    'bossHp', 'goalLock', 'attack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next',
-    'resultKicker', 'resultTitle', 'resultStats'
+    'bossName', 'bossHp', 'goalLock', 'attack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next',
+    'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
   const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'attack', 'jump'].map((name) => {
@@ -80,12 +80,12 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
 
 function testStagesAndSpawn() {
   const game = createGame({ width: 390, height: 844, touch: true });
-  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8']) {
+  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5']) {
     game.setStage(id);
     const start = game.state();
     assert.equal(start.player.hp, 3, `${id}: starts with full HP`);
     assert.ok(start.player.y >= 0 && start.player.y < start.world.height, `${id}: spawn is inside world`);
-    if (id !== '1-7') assert.equal(start.player.grounded, true, `${id}: spawn is grounded`);
+    if (!['1-7', '2-5'].includes(id)) assert.equal(start.player.grounded, true, `${id}: spawn is grounded`);
     game.step(.45);
     game.draw();
     const after = game.state();
@@ -94,7 +94,7 @@ function testStagesAndSpawn() {
   }
   game.setStage('1-1');
   const portrait = game.state();
-  const playerScreenRatio = 112 / portrait.world.viewportHeight;
+  const playerScreenRatio = (112 * 1.32) / portrait.world.viewportHeight;
   assert.ok(playerScreenRatio >= .14 && playerScreenRatio <= .18, 'portrait player height stays within 14–18%');
 }
 
@@ -147,6 +147,10 @@ function testModes() {
   game.setStage('1-1');
   game.setMode('muscle');
   assert.equal(game.state().player.modeTimer, 25);
+  game.hit();
+  assert.equal(game.state().player.hp, 1.5, 'GORI MACHO loses half of its full HP per hit');
+  game.hit();
+  assert.equal(game.state().player.hp, 0, 'GORI MACHO loses the other half on the next hit');
 }
 
 function testCoreControls() {
@@ -186,6 +190,16 @@ function testCoreControls() {
   game.setInput('jump', false);
   assert.equal(game.state().player.jumpCount, 2, 'double jump works');
 
+  game.setStage('1-1');
+  const comboStart = game.state().player;
+  game.setInput('dashRight', true);
+  game.setInput('jump', true);
+  game.step(.12);
+  game.setInput('dashRight', false);
+  game.setInput('jump', false);
+  const comboEnd = game.state().player;
+  assert.ok(comboEnd.x > comboStart.x && comboEnd.vy < 0, 'dash and jump work simultaneously for multi-touch controls');
+
   game.setStage('1-7');
   const waterY = game.state().player.y;
   game.setInput('up', true);
@@ -210,6 +224,14 @@ function testCoreControls() {
   assert.equal(game.state().player.swordPose, 'finish', 'sword ATTACK advances to the follow-through pose');
   game.step(.2);
   assert.equal(game.state().player.swordPose, 'ready', 'sword pose returns to ready after the attack');
+
+  game.setStage('1-1');
+  const swordTarget = game.state().enemyPositions[0];
+  const swordEnemyCount = game.state().enemiesAlive;
+  game.teleport(swordTarget.x - 90, swordTarget.y);
+  game.giveSword();
+  game.attack();
+  assert.ok(game.state().enemiesAlive < swordEnemyCount, 'sword attack defeats an enemy in its hitbox');
 
   game.setStage('1-1');
   const beforeDashWall = game.state();
@@ -243,6 +265,17 @@ function testTraversalAndStompUpgrades() {
   assert.ok(game.state().player.y < ledge.y + ledge.h, 'jumping passes through the underside of an upper ledge');
 
   game.setStage('1-1');
+  const dropLedge = game.state().oneWayPlatforms.find((platform) => platform.y < 560 && platform.h <= 32);
+  game.teleport(dropLedge.x + 30, dropLedge.y - 112);
+  game.step(.04);
+  const ledgeTop = game.state().player.y;
+  game.setInput('down', true);
+  game.step(.06);
+  game.setInput('down', false);
+  assert.ok(game.state().player.dropTimer > 0, 'down input enables one-way platform drop-through');
+  assert.ok(game.state().player.y > ledgeTop + 8, 'Feni drops below a ledge instead of getting caught on it');
+
+  game.setStage('1-1');
   const pad = game.state().jumpPadPositions[0];
   game.teleport(pad.x + 5, pad.y - 170);
   game.setVelocity(0, 720);
@@ -268,6 +301,85 @@ function testTraversalAndStompUpgrades() {
   assert.ok(game.state().kingWeight < .1, 'KING MODE random spawn weight stays rare');
   game.setStage('1-5');
   assert.equal(game.state().transformTypes.filter((type) => type === 'king').length, 1, 'boss stage keeps one deliberate KING pickup');
+
+  game.setStage('1-6');
+  const surfaceDecks = game.state().oneWayPlatforms.filter((platform) => platform.surfaceRoute);
+  assert.ok(surfaceDecks.length >= 4, 'underground maze has a traversable surface route connected to the deep route');
+}
+
+function testStaminaCoinsAndEnemyArsenal() {
+  const game = createGame();
+  game.setStage('1-1');
+  game.setInput('dashLeft', true);
+  game.step(1.25);
+  game.setInput('dashLeft', false);
+  game.step(.03);
+  const spent = game.state().player.dash;
+  assert.ok(spent < 70, 'dash consumes stamina before a manual recharge');
+  game.setInput('down', true);
+  game.step(.55);
+  const charged = game.state().player;
+  game.setInput('down', false);
+  assert.ok(charged.chargeTime > 0, 'holding down on safe solid ground enters CHARGE');
+  assert.ok(charged.dash > spent + 35, 'manual CHARGE restores stamina rapidly');
+
+  game.setStage('1-1');
+  const firstCoin = game.state().coinPositions[0];
+  game.teleport(firstCoin.x - 30, firstCoin.y - 55);
+  game.step(.04);
+  const firstBonus = game.state().player.coinSpeed;
+  assert.ok(firstBonus > 0, 'collecting a coin adds movement speed');
+  const secondCoin = game.state().coinPositions[0];
+  game.teleport(secondCoin.x - 30, secondCoin.y - 55);
+  game.step(.04);
+  assert.ok(game.state().player.coinSpeed > firstBonus, 'coin speed increases gradually with each pickup');
+
+  game.setStage('1-1');
+  const enemyFamilies = game.state().enemyPositions;
+  assert.ok(enemyFamilies.every((enemy) => enemy.w >= 64), 'enemy sprites use the larger combat scale');
+  assert.ok(new Set(enemyFamilies.map((enemy) => enemy.attack)).size >= 3, 'enemy families expose multiple attack types');
+  const target = enemyFamilies[0];
+  game.teleport(Math.max(0, target.x - 520), target.y);
+  game.setMode('king');
+  const firedKinds = new Set();
+  for (let frame = 0; frame < 36; frame += 1) {
+    game.step(.1);
+    game.state().projectileKinds.forEach((kind) => firedKinds.add(kind));
+  }
+  assert.ok([...firedKinds].some((kind) => kind !== 'droplet'), 'telegraphed enemy special attacks actually fire');
+}
+
+function testModeSwordAndGoalExpressions() {
+  const game = createGame();
+  for (const transform of ['battery', 'lcd', 'king', 'muscle']) {
+    game.setStage('1-5');
+    game.setMode(transform);
+    game.giveSword();
+    assert.equal(game.state().player.swordPose, 'ready', `${transform}: keeps its own sword-ready state`);
+    game.attack();
+    assert.equal(game.state().player.swordPose, 'swing', `${transform}: can swing the sword`);
+    assert.ok(game.state().shockwaveKinds.includes('slash'), `${transform}: keeps the flame slash wave`);
+    if (transform === 'muscle') assert.equal(game.state().rushTrails, 0, 'GORI MACHO uses the sword, not rush punch, while armed');
+  }
+
+  const goalLines = {
+    normal: 'おいどんの勝利！！', battery: '体力万全！！', lcd: '合理的な結果やな',
+    king: "I'm KING👑", muscle: 'うおおおおお！！プロテイン！！'
+  };
+  for (const [transform, line] of Object.entries(goalLines)) {
+    game.setStage('1-1');
+    if (transform !== 'normal') game.setMode(transform);
+    const goal = game.state().goal;
+    game.teleport(goal.x + 2, 480);
+    game.step(.04);
+    assert.equal(game.state().player.clearMode, transform, `${transform}: clear pose preserves the active mode`);
+    assert.ok(game.state().notice.includes(line), `${transform}: displays its unique goal line`);
+  }
+
+  game.setStage('1-1');
+  game.respawn();
+  assert.ok(game.state().notice.includes('何度でも蘇る！！'), 'respawn displays the requested speech bubble line');
+  assert.ok(game.state().player.revivePose > 0, 'respawn activates the dedicated smiling expression');
 }
 
 function testRushPunch() {
@@ -332,6 +444,22 @@ function testBossGateAndChaseWall() {
   const wallAfter = game.state().chaserWall;
   assert.ok(wallAfter.x > wallStart.x, 'chaser wall advances');
   assert.ok(wallAfter.speed >= wallStart.speed, 'chaser wall accelerates with progress');
+
+  game.setStage('2-5');
+  const shark = game.state().boss;
+  assert.equal(shark.type, 'shark', '2-5 uses the giant mecha shark boss');
+  assert.equal(shark.name, 'ABYSS MECHA SHARK');
+  assert.equal(shark.goalUnlocked, false, '2-5 goal starts locked');
+  assert.ok(shark.swordX < shark.gateX && shark.gateX - shark.swordX >= 500, 'Phoenix Sword is prepared well before the shark arena');
+  game.giveSword();
+  game.teleport(shark.gateX + 30, 300);
+  game.step(.08);
+  assert.ok(game.state().notice.includes('おいどんが諦めるのを諦めろ！！'), 'armed boss entry uses the sword-holder line');
+  game.step(2.5);
+  assert.ok(game.state().bossProjectileKinds.includes('torpedo'), 'mecha shark launches torpedo attacks');
+  game.defeatBoss();
+  game.step(3);
+  assert.equal(game.state().boss.goalUnlocked, true, '2-5 goal unlocks only after the shark is defeated');
 }
 
 function testAssetsAndSyntaxSurface() {
@@ -360,7 +488,7 @@ function testViewportMatrix() {
     assert.ok(state.world.viewportWidth > 0 && state.world.viewportHeight > 0, `${label}: viewport initializes`);
     assert.ok(state.player.y < state.world.height, `${label}: player remains inside the stage`);
     if (height > width) {
-      const ratio = 112 / state.world.viewportHeight;
+      const ratio = (112 * 1.32) / state.world.viewportHeight;
       assert.ok(ratio >= .14 && ratio <= .18, `${label}: portrait player height stays within 14–18%`);
     }
   }
@@ -387,6 +515,9 @@ function testSoundRuntime() {
   context.RepairHeroSound.music('game');
   context.RepairHeroSound.play('rushPunch');
   context.RepairHeroSound.play('shieldBreak');
+  context.RepairHeroSound.play('attack');
+  context.RepairHeroSound.play('enemyAttack');
+  context.RepairHeroSound.play('revive');
   context.RepairHeroSound.music('boss2');
   context.RepairHeroSound.music(null);
 }
@@ -394,6 +525,8 @@ function testSoundRuntime() {
 testStagesAndSpawn();
 testCoreControls();
 testTraversalAndStompUpgrades();
+testStaminaCoinsAndEnemyArsenal();
+testModeSwordAndGoalExpressions();
 testModes();
 testRushPunch();
 testBossGateAndChaseWall();

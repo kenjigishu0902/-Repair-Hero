@@ -18,14 +18,14 @@
       <div><span>COIN</span><b>● <i id="coins">00</i></b></div>
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
-      <div class="dash-meter"><span>DASH</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
+      <div class="dash-meter"><span>STAMINA / ↓ CHARGE</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
       <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×2</em></div>
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
-    <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b>MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
+    <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGES 1-1 — 1-8</div>
+      <div class="title-badge">STAGES 1-1 — 2-5</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
@@ -36,7 +36,7 @@
     <section id="result" class="screen result hidden">
       <div>
         <p id="resultKicker">STAGE CLEAR!</p>
-        <img class="result-feni" src="./feni.png" alt="主人公 フェニちゃん">
+        <img id="resultFeni" class="result-feni" src="./feni.png" alt="主人公 フェニちゃん">
         <h2 id="resultTitle">修理完了！</h2>
         <p id="resultStats"></p>
         <button id="next">NEXT</button>
@@ -54,8 +54,8 @@
         <button data-input="dashRight" class="dash" aria-label="右へダッシュ">DASH →</button>
         <button data-input="left" aria-label="左へ移動">←</button>
         <button data-input="right" aria-label="右へ移動">→</button>
-        <button data-input="up" class="vertical-only" aria-label="上へ移動">↑</button>
-        <button data-input="down" class="vertical-only" aria-label="下へ移動">↓</button>
+        <button data-input="up" class="vertical-only direction-up" aria-label="上へ移動">↑</button>
+        <button data-input="down" class="drop-control direction-down" aria-label="足場を降りる・スタミナ回復">↓<small>DROP<br>CHARGE</small></button>
       </div>
       <div class="action-pad">
         <button id="attack" data-input="attack" class="attack hidden">⚔<br>ATTACK</button>
