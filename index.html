@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="style.css?v=20260813b">
 </head>
 <body>
   <main id="app">
@@ -18,14 +18,14 @@
       <div><span>COIN</span><b>● <i id="coins">00</i></b></div>
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
-      <div class="dash-meter"><span>STAMINA / ↓ CHARGE</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
+      <div class="dash-meter"><span>STAMINA / C・⚡ CHARGE</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
       <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×2</em></div>
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGES 1-1 — 2-5</div>
+      <div class="title-badge">STAGES 1-1 — 2-5 · UPDATE 08.13</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
@@ -36,7 +36,7 @@
     <section id="result" class="screen result hidden">
       <div>
         <p id="resultKicker">STAGE CLEAR!</p>
-        <img id="resultFeni" class="result-feni" src="./feni.png" alt="主人公 フェニちゃん">
+        <canvas id="resultFeni" class="result-feni" width="256" height="256" role="img" aria-label="ゴールポーズのフェニちゃん"></canvas>
         <h2 id="resultTitle">修理完了！</h2>
         <p id="resultStats"></p>
         <button id="next">NEXT</button>
@@ -44,7 +44,10 @@
       </div>
     </section>
 
-    <div id="notice" class="notice" aria-live="polite"></div>
+    <div id="notice" class="notice" aria-live="polite">
+      <canvas id="noticePortrait" class="notice-portrait" width="256" height="256" aria-hidden="true"></canvas>
+      <span id="noticeText"></span>
+    </div>
     <div id="transformFlash" class="transform-flash" aria-hidden="true"></div>
     <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
 
@@ -55,15 +58,16 @@
         <button data-input="left" aria-label="左へ移動">←</button>
         <button data-input="right" aria-label="右へ移動">→</button>
         <button data-input="up" class="vertical-only direction-up" aria-label="上へ移動">↑</button>
-        <button data-input="down" class="drop-control direction-down" aria-label="足場を降りる・スタミナ回復">↓<small>DROP<br>CHARGE</small></button>
+        <button data-input="down" class="drop-control direction-down" aria-label="足場を降りる・下へ移動">↓<small>DROP<br>DIVE</small></button>
       </div>
       <div class="action-pad">
+        <button id="charge" data-input="charge" class="charge-control" aria-label="スタミナを任意回復">⚡<small>STAMINA<br>CHARGE</small></button>
         <button id="attack" data-input="attack" class="attack hidden">⚔<br>ATTACK</button>
         <button data-input="jump" class="jump">JUMP</button>
       </div>
     </nav>
   </main>
-  <script src="sound.js"></script>
-  <script src="game.js"></script>
+  <script src="sound.js?v=20260813b"></script>
+  <script src="game.js?v=20260813b"></script>
 </body>
 </html>

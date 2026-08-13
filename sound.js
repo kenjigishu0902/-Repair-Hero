@@ -10,7 +10,7 @@
     audio.src = url;
     audio.loop = true;
     audio.preload = 'auto';
-    audio.volume = .32;
+    audio.volume = .46;
     return [name, audio];
   }));
   let context;
@@ -64,9 +64,9 @@
     synthTimer = window.setInterval(() => {
       if (currentName !== name) return;
       const melody = melodies[name];
-      note(melody[synthStep % melody.length], .16, .018, 'triangle');
-      if (synthStep % 2 === 0) note(name === 'game' ? [110,147,165,196][Math.floor(synthStep/2)%4] : 131, .2, name==='game'?.017:.012, 'sine');
-      if(name==='game'&&synthStep%4===3)note(melody[(synthStep+4)%melody.length]*.5,.22,.009,'sawtooth');
+      note(melody[synthStep % melody.length], .16, name==='game'?.028:.018, 'triangle');
+      if (synthStep % 2 === 0) note(name === 'game' ? [110,147,165,196][Math.floor(synthStep/2)%4] : 131, .2, name==='game'?.022:.012, 'sine');
+      if(name==='game'&&synthStep%4===3)note(melody[(synthStep+4)%melody.length]*.5,.22,.013,'sawtooth');
       synthStep += 1;
     }, name === 'boss2' ? 120 : name === 'boss' ? 150 : name === 'game' ? 155 : 260);
   }

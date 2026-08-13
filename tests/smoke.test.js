@@ -42,12 +42,12 @@ class Element {
 function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
-    'dashGauge', 'notice', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
-    'bossName', 'bossHp', 'goalLock', 'attack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next',
+    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
+    'bossName', 'bossHp', 'goalLock', 'attack', 'charge', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
-  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'attack', 'jump'].map((name) => {
+  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'charge', 'attack', 'jump'].map((name) => {
     const button = new Element();
     button.dataset.input = name;
     return button;
@@ -173,6 +173,9 @@ function testCoreControls() {
   game.step(.25);
   game.setInput('dashRight', false);
   assert.ok(game.state().player.vx > 300, 'right dash reaches dash speed');
+  assert.equal(game.state().player.state, 'dash', 'dash pose remains locked instead of flickering to walk/air frames');
+  game.step(.08);
+  assert.equal(game.state().player.state, 'dash', 'dash pose lock survives the button release transition');
 
   game.setStage('1-1');
   game.setInput('dashLeft', true);
@@ -316,11 +319,11 @@ function testStaminaCoinsAndEnemyArsenal() {
   game.step(.03);
   const spent = game.state().player.dash;
   assert.ok(spent < 70, 'dash consumes stamina before a manual recharge');
-  game.setInput('down', true);
+  game.setInput('charge', true);
   game.step(.55);
   const charged = game.state().player;
-  game.setInput('down', false);
-  assert.ok(charged.chargeTime > 0, 'holding down on safe solid ground enters CHARGE');
+  game.setInput('charge', false);
+  assert.ok(charged.chargeTime > 0, 'dedicated CHARGE input enters manual stamina recovery');
   assert.ok(charged.dash > spent + 35, 'manual CHARGE restores stamina rapidly');
 
   game.setStage('1-1');
@@ -339,10 +342,11 @@ function testStaminaCoinsAndEnemyArsenal() {
   assert.ok(enemyFamilies.every((enemy) => enemy.w >= 64), 'enemy sprites use the larger combat scale');
   assert.ok(new Set(enemyFamilies.map((enemy) => enemy.attack)).size >= 3, 'enemy families expose multiple attack types');
   const target = enemyFamilies[0];
+  assert.ok(target.attackCooldown >= 3.4, 'enemy special attacks begin with a low-tempo cooldown');
   game.teleport(Math.max(0, target.x - 520), target.y);
   game.setMode('king');
   const firedKinds = new Set();
-  for (let frame = 0; frame < 36; frame += 1) {
+  for (let frame = 0; frame < 96; frame += 1) {
     game.step(.1);
     game.state().projectileKinds.forEach((kind) => firedKinds.add(kind));
   }
@@ -379,6 +383,7 @@ function testModeSwordAndGoalExpressions() {
   game.setStage('1-1');
   game.respawn();
   assert.ok(game.state().notice.includes('何度でも蘇る！！'), 'respawn displays the requested speech bubble line');
+  assert.equal(game.state().noticeExpression.state, 'revive', 'respawn bubble uses the dedicated revival portrait');
   assert.ok(game.state().player.revivePose > 0, 'respawn activates the dedicated smiling expression');
 }
 
@@ -455,21 +460,25 @@ function testBossGateAndChaseWall() {
   game.teleport(shark.gateX + 30, 300);
   game.step(.08);
   assert.ok(game.state().notice.includes('おいどんが諦めるのを諦めろ！！'), 'armed boss entry uses the sword-holder line');
-  game.step(2.5);
-  assert.ok(game.state().bossProjectileKinds.includes('torpedo'), 'mecha shark launches torpedo attacks');
+  const sharkAttacks = new Set();
+  for (let frame = 0; frame < 85; frame += 1) {
+    game.step(.1);
+    game.state().bossProjectileKinds.forEach((kind) => sharkAttacks.add(kind));
+  }
+  assert.ok(sharkAttacks.has('torpedo'), 'mecha shark launches low-tempo torpedo attacks');
   game.defeatBoss();
   game.step(3);
   assert.equal(game.state().boss.goalUnlocked, true, '2-5 goal unlocks only after the shark is defeated');
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
-    const local = source[1].replace(/^\.\//, '');
+    const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
   }
 }
@@ -490,7 +499,8 @@ function testViewportMatrix() {
     if (height > width) {
       const ratio = (112 * 1.32) / state.world.viewportHeight;
       assert.ok(ratio >= .14 && ratio <= .18, `${label}: portrait player height stays within 14–18%`);
-    }
+      assert.ok(state.world.viewportWidth >= 469, `${label}: portrait preserves at least 470 world pixels of forward view`);
+    } else assert.ok(state.world.viewportWidth >= 1149, `${label}: landscape preserves at least 1150 world pixels of view`);
   }
 }
 
