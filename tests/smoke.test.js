@@ -204,6 +204,8 @@ function testCoreControls() {
   game.attack();
   assert.ok(game.state().player.attackTime > 0, 'sword ATTACK activates');
   assert.equal(game.state().player.swordPose, 'swing', 'sword ATTACK starts with the flaming swing pose');
+  assert.ok(game.state().shockwaveKinds.includes('slash'), 'sword ATTACK launches a flame slash wave');
+  assert.ok(game.state().shockwaveData.some((wave) => wave.kind === 'slash' && wave.maxDistance >= 360), 'slash wave travels well beyond the sword hitbox');
   game.step(.18);
   assert.equal(game.state().player.swordPose, 'finish', 'sword ATTACK advances to the follow-through pose');
   game.step(.2);
@@ -229,6 +231,45 @@ function testCoreControls() {
   assert.equal(Math.round(game.state().player.y), Math.round(checkpoint.respawnY), 'checkpoint respawn Y is safe and restored');
 }
 
+function testTraversalAndStompUpgrades() {
+  const game = createGame();
+  game.setStage('1-1');
+
+  const ledge = game.state().oneWayPlatforms.find((platform) => platform.y < 560 && platform.h <= 32);
+  assert.ok(ledge, 'stage exposes a one-way upper ledge');
+  game.teleport(ledge.x + 25, ledge.y + ledge.h + 8);
+  game.setVelocity(0, -780);
+  game.step(.18);
+  assert.ok(game.state().player.y < ledge.y + ledge.h, 'jumping passes through the underside of an upper ledge');
+
+  game.setStage('1-1');
+  const pad = game.state().jumpPadPositions[0];
+  game.teleport(pad.x + 5, pad.y - 170);
+  game.setVelocity(0, 720);
+  game.step(.22);
+  assert.ok(game.state().jumpPadVelocity <= -1100, 'jump pad launch power is substantially stronger than the old -850 setting');
+  assert.ok(game.state().player.vy < 0 && game.state().player.y < pad.y - 200, 'jump pad sends Feni rapidly upward');
+  assert.equal(game.state().player.jumpCount, 0, 'jump pad preserves both air jumps');
+
+  game.setStage('1-1');
+  const target = game.state().enemyPositions.find((enemy) => enemy.type === 'phoneBot') || game.state().enemyPositions[0];
+  const enemiesBefore = game.state().enemiesAlive;
+  game.teleport(target.x + target.w * .25, target.y - 145);
+  game.setVelocity(0, 620);
+  game.step(.18);
+  assert.ok(game.state().enemiesAlive < enemiesBefore, 'falling onto an enemy reliably stomps it');
+  assert.ok(game.state().player.vy < 0, 'successful stomp bounces Feni upward');
+
+  for (const [id, minimumWidth] of [['1-1', 10000], ['1-5', 9000], ['1-6', 13000], ['1-7', 13500], ['1-8', 11000]]) {
+    game.setStage(id);
+    assert.ok(game.state().world.width >= minimumWidth, `${id}: stage is substantially longer`);
+  }
+  game.setStage('1-1');
+  assert.ok(game.state().kingWeight < .1, 'KING MODE random spawn weight stays rare');
+  game.setStage('1-5');
+  assert.equal(game.state().transformTypes.filter((type) => type === 'king').length, 1, 'boss stage keeps one deliberate KING pickup');
+}
+
 function testRushPunch() {
   const game = createGame();
   game.start();
@@ -251,10 +292,11 @@ function testRushPunch() {
   assert.ok(game.state().breakablesAlive < wallState.breakablesAlive, 'rush shockwave destroys breakable walls');
 
   game.setStage('1-5');
-  game.teleport(4995, 470);
+  const gateX = game.state().boss.gateX;
+  game.teleport(gateX + 30, 470);
   game.step(.08);
   assert.equal(game.state().boss.gateClosed, true, 'boss gate closes before combat');
-  game.teleport(4850, 470);
+  game.teleport(gateX - 420, 470);
   const gatedBossHp = game.state().boss.hp;
   game.setMode('muscle');
   game.attack();
@@ -262,7 +304,10 @@ function testRushPunch() {
   assert.equal(game.state().boss.hp, gatedBossHp, 'rush shockwave cannot pass through the fixed boss gate');
 
   game.setStage('1-5');
-  game.teleport(5250, 480);
+  const bossEntry = game.state().boss;
+  game.teleport(bossEntry.gateX + 30, 470);
+  game.step(.08);
+  game.teleport(game.state().boss.x - 300, game.state().boss.y + 100);
   game.step(.08);
   const bossBefore = game.state().boss.hp;
   game.setMode('muscle');
@@ -290,8 +335,9 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
+    assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
@@ -347,6 +393,7 @@ function testSoundRuntime() {
 
 testStagesAndSpawn();
 testCoreControls();
+testTraversalAndStompUpgrades();
 testModes();
 testRushPunch();
 testBossGateAndChaseWall();
