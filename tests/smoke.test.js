@@ -30,6 +30,7 @@ class Element {
     this.offsetWidth = 100;
   }
   addEventListener() {}
+  setAttribute(name, value) { this[name] = String(value); }
   setPointerCapture() {}
   getContext() {
     const gradient = { addColorStop() {} };
@@ -43,11 +44,11 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
     'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
-    'bossName', 'bossHp', 'goalLock', 'attack', 'charge', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next',
+    'bossName', 'bossHp', 'goalLock', 'attack', 'charge', 'wingAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
-  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'charge', 'attack', 'jump'].map((name) => {
+  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'charge', 'wing', 'attack', 'jump'].map((name) => {
     const button = new Element();
     button.dataset.input = name;
     return button;
@@ -327,15 +328,17 @@ function testStaminaCoinsAndEnemyArsenal() {
   assert.ok(charged.dash > spent + 35, 'manual CHARGE restores stamina rapidly');
 
   game.setStage('1-1');
-  const firstCoin = game.state().coinPositions[0];
-  game.teleport(firstCoin.x - 30, firstCoin.y - 55);
-  game.step(.04);
-  const firstBonus = game.state().player.coinSpeed;
-  assert.ok(firstBonus > 0, 'collecting a coin adds movement speed');
-  const secondCoin = game.state().coinPositions[0];
-  game.teleport(secondCoin.x - 30, secondCoin.y - 55);
-  game.step(.04);
-  assert.ok(game.state().player.coinSpeed > firstBonus, 'coin speed increases gradually with each pickup');
+  game.collectCoins(4);
+  assert.equal(game.state().player.speedTier, 0, '0–4 coins keep normal speed');
+  assert.equal(game.state().player.coinSpeed, 0, 'normal coin tier has no hidden speed creep');
+  game.collectCoins(1);
+  assert.equal(game.state().player.speedTier, 1, 'the fifth coin unlocks medium speed');
+  assert.ok(game.state().player.coinSpeed >= 60, 'medium speed is clearly stronger');
+  assert.ok(game.state().notice.includes('SPEED UP'), 'the fifth coin announces SPEED UP');
+  game.collectCoins(5);
+  assert.equal(game.state().player.speedTier, 2, 'the tenth coin unlocks high speed');
+  assert.ok(game.state().player.coinSpeed >= 120, 'high speed is substantially stronger');
+  assert.ok(game.state().notice.includes('SUPER SPEED UP'), 'the tenth coin gets the stronger presentation');
 
   game.setStage('1-1');
   const enemyFamilies = game.state().enemyPositions;
@@ -351,6 +354,125 @@ function testStaminaCoinsAndEnemyArsenal() {
     game.state().projectileKinds.forEach((kind) => firedKinds.add(kind));
   }
   assert.ok([...firedKinds].some((kind) => kind !== 'droplet'), 'telegraphed enemy special attacks actually fire');
+}
+
+function testProjectileLifecycleIdleJumpAndWing() {
+  const game = createGame();
+  game.setStage('1-5');
+  game.spawnEnemyProjectile('missile');
+  assert.equal(game.state().enemyProjectileData.length, 1, 'enemy ranged objects expose lifecycle data');
+  assert.ok(game.state().enemyProjectileData[0].maxDistance <= 620, 'enemy projectile has a finite readable range');
+  assert.ok(game.state().enemyProjectileData[0].life <= 3.2, 'enemy projectile has a finite lifetime');
+  const gateX = game.state().boss.gateX;
+  game.teleport(gateX + 40, 470);
+  game.beginBoss();
+  assert.equal(game.state().enemyProjectileData.length, 0, 'boss intro removes regular-enemy projectiles');
+  for (let index = 0; index < 70; index += 1) game.spawnEnemyProjectile('bolt');
+  assert.ok(game.state().poolCounts.droplets <= 48, 'enemy projectile pool is capped for mobile performance');
+  game.step(3.5);
+  assert.equal(game.state().enemyProjectileData.length, 0, 'expired or over-range enemy projectiles are removed from memory');
+
+  game.setStage('1-1');
+  game.forceIdle('blink');
+  assert.equal(game.state().player.motionFrame, 'blink', 'idle animation has a dedicated blink frame');
+  game.forceIdle('lookAround');
+  assert.ok(['lookLeft', 'lookRight'].includes(game.state().player.motionFrame), 'idle animation can look around');
+  game.setInput('right', true);
+  game.step(.06);
+  game.setInput('right', false);
+  assert.equal(game.state().player.idleAction, null, 'player input immediately interrupts special idle motion');
+  assert.equal(game.state().player.state, 'walk', 'idle transitions directly into movement');
+
+  game.setStage('1-1');
+  game.setInput('jump', true);
+  game.step(.025);
+  game.setInput('jump', false);
+  assert.equal(game.state().player.state, 'jump');
+  assert.equal(game.state().player.motionFrame, 'jumpStart', 'first jump begins with a takeoff pose');
+  game.step(.18);
+  assert.equal(game.state().player.motionFrame, 'jumpRise', 'first jump advances to its rising pose');
+  game.setInput('jump', true);
+  game.step(.025);
+  game.setInput('jump', false);
+  assert.equal(game.state().player.state, 'doubleJump');
+  assert.equal(game.state().player.motionFrame, 'doubleJump', 'second jump uses a distinct wing/twist pose');
+
+  game.setStage('1-1');
+  const target = game.state().enemyPositions[0];
+  const enemiesBefore = game.state().enemiesAlive;
+  game.teleport(target.x - 220, target.y + target.h - 112);
+  game.wingAttack();
+  assert.equal(game.state().player.motionFrame, 'wingCharge', 'wing attack starts with its charge pose');
+  game.step(.3);
+  assert.ok(game.state().wingProjectiles.length > 0, 'wing attack launches a real ranged projectile');
+  assert.ok(game.state().wingProjectiles[0].maxDistance <= 700, 'wing attack has a deliberate range limit');
+  game.step(.45);
+  assert.ok(game.state().enemiesAlive < enemiesBefore, 'wing attack damages a normal enemy');
+  const cooldown = game.state().player.wingCooldown;
+  game.wingAttack();
+  assert.equal(game.state().player.wingAttackTime, 0, 'wing cooldown prevents immediate repeated fire');
+  assert.ok(cooldown > 0, 'wing attack exposes a short cooldown');
+
+  game.setStage('1-5');
+  game.teleport(game.state().boss.gateX + 40, 470);
+  game.beginBoss();
+  game.step(2);
+  const bossBefore = game.state().boss.hp;
+  game.wingAttack();
+  game.step(1.15);
+  assert.ok(game.state().boss.hp < bossBefore, 'wing attack deals balanced fractional damage to a boss');
+}
+
+function testBossIntroAIPhasesAndCamera() {
+  const game = createGame({ width: 390, height: 844, touch: true });
+  game.setStage('1-5');
+  const initial = game.state();
+  assert.ok(initial.enemiesAlive > 0, 'boss stage retains regular encounters before the arena');
+  game.spawnEnemyProjectile('rail');
+  game.teleport(initial.boss.gateX + 40, 470);
+  game.beginBoss();
+  let state = game.state();
+  assert.equal(state.boss.active, false, 'boss AI is locked during the entrance presentation');
+  assert.equal(state.boss.gateClosed, true, 'arena gate closes at boss entry');
+  assert.equal(state.enemiesAlive, 0, 'all regular enemies are cleared at boss entry');
+  assert.equal(state.poolCounts.droplets, 0, 'all regular-enemy shots are cleared at boss entry');
+  assert.ok(state.boss.arenaWidth >= 2300, 'boss arena provides a wide dedicated combat space');
+  game.step(.7);
+  state = game.state();
+  const visibleSpan = Math.abs((state.boss.x + state.boss.w / 2) - (state.player.x + 36)) + state.boss.w / 2 + 36;
+  assert.ok(visibleSpan <= state.world.viewportWidth + 40, 'portrait boss camera frames both Feni and the boss');
+  assert.equal(state.boss.active, false, 'boss cannot attack during the warning window');
+  assert.equal(state.player.hp, 3, 'entrance presentation cannot damage the player');
+  game.step(1.25);
+  assert.equal(game.state().boss.active, true, 'boss AI starts only after the preparation window');
+
+  game.setMode('king');
+  const observedStates = new Set();
+  const observedAttacks = new Set();
+  const firstStateByAttack = new Map();
+  for (let frame = 0; frame < 190; frame += 1) {
+    game.step(.1);
+    const boss = game.state().boss;
+    observedStates.add(boss.state);
+    if (boss.attackName) {
+      observedAttacks.add(boss.attackName);
+      if (!firstStateByAttack.has(boss.attackName)) firstStateByAttack.set(boss.attackName, boss.state);
+    }
+  }
+  assert.ok(observedStates.has('telegraph'), 'boss attacks always expose a telegraph state');
+  assert.ok(observedStates.has('attack'), 'boss executes its telegraphed attacks');
+  assert.ok(observedStates.has('recovery'), 'boss attacks include a punishable recovery');
+  assert.ok(observedAttacks.size >= 3, 'boss cycles through multiple dedicated attacks');
+  assert.ok([...firstStateByAttack.values()].every((value) => value === 'telegraph'), 'each observed boss move begins with its warning phase');
+
+  game.setStage('1-5');
+  game.teleport(game.state().boss.gateX + 40, 470);
+  game.beginBoss();
+  game.step(2);
+  game.hitBoss(10);
+  assert.equal(game.state().boss.phase, 2, 'boss enters phase 2 below 60% HP');
+  game.hitBoss(8);
+  assert.equal(game.state().boss.phase, 3, 'boss unlocks its final phase below 30% HP');
 }
 
 function testModeSwordAndGoalExpressions() {
@@ -423,7 +545,7 @@ function testRushPunch() {
   game.setStage('1-5');
   const bossEntry = game.state().boss;
   game.teleport(bossEntry.gateX + 30, 470);
-  game.step(.08);
+  game.step(2);
   game.teleport(game.state().boss.x - 300, game.state().boss.y + 100);
   game.step(.08);
   const bossBefore = game.state().boss.hp;
@@ -461,7 +583,7 @@ function testBossGateAndChaseWall() {
   game.step(.08);
   assert.ok(game.state().notice.includes('おいどんが諦めるのを諦めろ！！'), 'armed boss entry uses the sword-holder line');
   const sharkAttacks = new Set();
-  for (let frame = 0; frame < 85; frame += 1) {
+  for (let frame = 0; frame < 145; frame += 1) {
     game.step(.1);
     game.state().bossProjectileKinds.forEach((kind) => sharkAttacks.add(kind));
   }
@@ -472,11 +594,12 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
@@ -528,14 +651,23 @@ function testSoundRuntime() {
   context.RepairHeroSound.play('attack');
   context.RepairHeroSound.play('enemyAttack');
   context.RepairHeroSound.play('revive');
+  context.RepairHeroSound.play('coin');
+  context.RepairHeroSound.play('speedUp');
+  context.RepairHeroSound.play('speedMax');
+  context.RepairHeroSound.play('wingFire');
   context.RepairHeroSound.music('boss2');
+  context.RepairHeroSound.transition('goal');
+  assert.equal(context.RepairHeroSound.state().currentName, 'goal', 'goal transition replaces the previous BGM instead of layering it');
   context.RepairHeroSound.music(null);
+  assert.equal(context.RepairHeroSound.state().currentName, null, 'leaving a stage stops the goal track');
 }
 
 testStagesAndSpawn();
 testCoreControls();
 testTraversalAndStompUpgrades();
 testStaminaCoinsAndEnemyArsenal();
+testProjectileLifecycleIdleJumpAndWing();
+testBossIntroAIPhasesAndCamera();
 testModeSwordAndGoalExpressions();
 testModes();
 testRushPunch();
