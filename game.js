@@ -8,7 +8,7 @@
   const ui = {
     title: $('#title'), result: $('#result'), hud: $('#hud'), touch: $('#touch'), pause: $('#pause'),
     hearts: $('#hearts'), coins: $('#coins'), score: $('#score'), timer: $('#timer'), dashGauge: $('#dashGauge'), notice: $('#notice'),
-    noticeText: $('#noticeText'), noticePortrait: $('#noticePortrait'), charge: $('#charge'), wingAttack: $('#wingAttack'),
+    noticeText: $('#noticeText'), noticePortrait: $('#noticePortrait'), wingAttack: $('#wingAttack'),
     modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), shieldCount: $('#shieldCount'), transformFlash: $('#transformFlash'),
     bossHud: $('#bossHud'), bossName: $('#bossName'), bossHp: $('#bossHp'), goalLock: $('#goalLock'), attack: $('#attack'),
     oxygenHud: $('#oxygenHud'), oxygenGauge: $('#oxygenGauge'), resultFeni: $('#resultFeni')
@@ -114,7 +114,9 @@
   const MAX_ENEMY_PROJECTILES = 48;
   const MAX_BOSS_PROJECTILES = 36;
   const MAX_FRIENDLY_PROJECTILES = 14;
-  const input = { left:false, right:false, up:false, down:false, jump:false, dashLeft:false, dashRight:false, attack:false, wing:false, charge:false };
+  const DASH_DRAIN_PER_SECOND = 28;
+  const DASH_RECOVERY_PER_SECOND = 12;
+  const input = { left:false, right:false, up:false, down:false, jump:false, dashLeft:false, dashRight:false, attack:false, wing:false };
   let width = 1280;
   let height = 720;
   let dpr = 1;
@@ -535,7 +537,7 @@
     const initialSpawn = safeSpawnNear(150,initialFloor?.y||FLOOR_Y);
     player = { x:initialSpawn.x, y:initialSpawn.y, w:PLAYER_W, h:PLAYER_H, vx:0, vy:0,
       grounded:!STAGES[currentStage].water, physicsReady:false, hp:3, maxHp:3, coins:0, score:0, invincible:0, state:'idle', anim:0,
-      facing:1, jumpHeld:false, jumpCount:0, spin:0, justLanded:0, spawnX:initialSpawn.x, spawnY:initialSpawn.y, spawnCamera:0,
+      facing:1, lastFacing:1, turnPoseTime:0, jumpHeld:false, jumpCount:0, spin:0, justLanded:0, spawnX:initialSpawn.x, spawnY:initialSpawn.y, spawnCamera:0,
       checkpointHp:3, checkpointCoins:0, checkpointScore:0, checkpointCoinSpeed:0, dead:false, respawnTimer:0, respawnMessage:'', dash:100, boost:0, clearTime:0,
       healDelay:0, healTick:0, shields:0, shieldHit:0, hasSword:false, attackHeld:false, attackTime:0, attackCooldown:0,
       rushPulse:0, kingBossHitCooldown:0, previousY:initialSpawn.y, dropTimer:0, downHeld:false, chargeTime:0, coinSpeed:0,speedTier:0,speedBurst:0,
@@ -932,7 +934,7 @@
     player.jumpCount = 0;
     player.spin = 0;
     player.attackTime=0;player.attackCooldown=0;player.attackHeld=false;player.wingAttackTime=0;player.wingCooldown=0;player.wingHeld=false;
-    player.dashPoseTime=0;player.hurtTime=0;player.speedBurst=0;player.idleTime=0;player.idleAction=null;player.idleActionTime=0;
+    player.dashPoseTime=0;player.turnPoseTime=0;player.lastFacing=player.facing;player.hurtTime=0;player.speedBurst=0;player.idleTime=0;player.idleAction=null;player.idleActionTime=0;
     player.revivePose = 1.6;
     cameraX = player.spawnCamera;
     droplets = [];
@@ -1042,6 +1044,7 @@
     player.wingAttackTime=Math.max(0,player.wingAttackTime-dt);player.wingCooldown=Math.max(0,player.wingCooldown-dt);
     if(previousWingTime>.36&&player.wingAttackTime<=.36&&!player.wingAttackFired){player.wingAttackFired=true;fireWingShot();}
     player.jumpPoseTime=Math.max(0,player.jumpPoseTime-dt);player.doubleJumpPose=Math.max(0,player.doubleJumpPose-dt);player.hurtTime=Math.max(0,player.hurtTime-dt);
+    player.turnPoseTime=Math.max(0,player.turnPoseTime-dt);
     player.speedBurst=Math.max(0,player.speedBurst-dt);
     player.rushPulse=Math.max(0,player.rushPulse-dt);
     player.dropTimer=Math.max(0,player.dropTimer-dt);
@@ -1065,7 +1068,7 @@
     const canDash = dashing && player.dash > 0;
     if(canDash){player.dashDirection=dashDirection;player.dashPoseTime=.18;}
     else player.dashPoseTime=Math.max(0,player.dashPoseTime-dt);
-    player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -38 : 8) * dt));
+    player.dash = Math.max(0, Math.min(100, player.dash + (canDash ? -DASH_DRAIN_PER_SECOND : DASH_RECOVERY_PER_SECOND) * dt));
     const speedBonus=coinSpeedBonus(player.coins);
     const speedScale = playerMode === 'lcd' ? 1.42 : playerMode === 'battery' ? 1.08 : playerMode === 'king' ? 1.55 : 1;
     const dashSpeed = (playerMode === 'lcd' ? 655 : player.boost ? 610 : playerMode === 'king' ? 760 : 455)+coinDashBonus(player.coins);
@@ -1075,7 +1078,8 @@
     const acceleration = (player.grounded ? 1900 : 1050) * (playerMode === 'lcd' ? 1.48 : playerMode === 'king' ? 1.7 : 1)*tierAcceleration;
     player.vx += Math.max(-acceleration * dt, Math.min(acceleration * dt, targetSpeed - player.vx));
     if (!direction && player.grounded) player.vx *= Math.pow(playerMode === 'lcd' ? .00002 : .0008, dt);
-    if (direction) player.facing = direction;
+    if(direction&&direction!==player.facing){player.lastFacing=player.facing;player.facing=direction;player.turnPoseTime=.14;if(player.grounded)spawnDust(player.x+player.w/2,player.y+player.h,2);}
+    else if(direction)player.facing=direction;
 
     const wantsDrop=input.down&&!input.up&&!input.jump;
     if(wantsDrop&&!player.downHeld&&!STAGES[currentStage].water&&playerMode!=='king'){
@@ -1083,11 +1087,9 @@
       if(support){player.dropTimer=.28;player.y+=12;player.vy=120;player.grounded=false;sound('drop');}
     }
     player.downHeld=wantsDrop;
-    const freeSwimming=STAGES[currentStage].water||playerMode==='king';
-    const stableToCharge=freeSwimming?Math.abs(player.vy)<180:player.grounded&&player.dropTimer<=0;
     const legacyGroundCharge=wantsDrop&&!STAGES[currentStage].water&&playerMode!=='king';
-    const charging=(input.charge||legacyGroundCharge)&&stableToCharge&&!direction&&!input.attack;
-    if(charging){player.chargeTime+=dt;player.dash=Math.min(100,player.dash+72*dt);player.vx*=Math.pow(.001,dt);if(freeSwimming)player.vy*=Math.pow(.02,dt);if(Math.floor(player.chargeTime*5)!==Math.floor((player.chargeTime-dt)*5)){sound('charge');emitModeParticles(playerMode==='normal'?'battery':playerMode,3);}}
+    const charging=legacyGroundCharge&&player.grounded&&player.dropTimer<=0&&!direction&&!input.attack;
+    if(charging){player.chargeTime+=dt;player.dash=Math.min(100,player.dash+72*dt);player.vx*=Math.pow(.001,dt);if(Math.floor(player.chargeTime*5)!==Math.floor((player.chargeTime-dt)*5)){sound('charge');emitModeParticles(playerMode==='normal'?'battery':playerMode,3);}}
     else player.chargeTime=0;
 
     if (STAGES[currentStage].water) {
@@ -1121,7 +1123,7 @@
     player.x = Math.max(0, Math.min(WORLD_WIDTH - player.w, player.x));
     if(bossGate?.closed&&boss?.intro&&player.x<bossGate.x+bossGate.w+12){player.x=bossGate.x+bossGate.w+12;player.vx=Math.max(0,player.vx);}
     if (!wasGrounded && player.grounded) {
-      player.jumpCount = 0; player.spin = 0; player.justLanded = .16; landingShake = 5;
+      player.jumpCount = 0; player.spin = 0; player.justLanded = .20; landingShake = 5;
       spawnDust(player.x + player.w / 2, player.y + player.h, 6);
       if (playerMode === 'muscle') { shake=10; sound('stomp'); shockwaves.push({x:player.x+player.w/2,y:player.y+player.h-20,w:16,vx:-180,life:.45,friendly:true},{x:player.x+player.w/2,y:player.y+player.h-20,w:16,vx:180,life:.45,friendly:true}); }
     }
@@ -1135,7 +1137,7 @@
     if (player.y > WORLD_HEIGHT + 180) respawnAfterFall();
 
     const speed = Math.abs(player.vx);
-    const hasControl=!!(direction||input.jump||input.up||input.down||input.attack||input.wing||input.charge||dashPressed);
+    const hasControl=!!(direction||input.jump||input.up||input.down||input.attack||input.wing||dashPressed);
     updateIdleMotion(dt,hasControl,speed);
     // Dash has its own short action lock, including airborne frames. Ground,
     // jump and landing updates therefore cannot flicker another sprite into it.
@@ -1148,7 +1150,7 @@
     else if (!player.grounded) player.state = player.vy < 0 ? (player.jumpCount === 2 ? 'doubleJump' : 'jump') : 'fall';
     else if (speed > 30) player.state = 'walk';
     else player.state = 'idle';
-    player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 9 : 3) * (playerMode === 'lcd' ? 1.7 : 1);
+    player.anim += dt * (player.state === 'dash' ? 15 : player.state === 'walk' ? 10.5 : 3) * (playerMode === 'lcd' ? 1.7 : 1);
     if (player.grounded && speed > 100 && Math.floor(player.anim * 2) !== Math.floor((player.anim - dt * 9) * 2)) spawnDust(player.x, player.y + player.h, dashing ? 3 : 1);
     if (playerMode === 'lcd' && Math.floor(elapsed*16) !== Math.floor((elapsed-dt)*16)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.28,lcd:true,mode:playerMode,state:player.state});
     if (canDash) { shake = Math.max(shake, 2.5); if (Math.floor(elapsed*18) !== Math.floor((elapsed-dt)*18)) afterimages.push({x:player.x,y:player.y,facing:player.facing,life:.18,mode:playerMode,state:player.state}); }
@@ -1645,7 +1647,6 @@
     ui.score.textContent = String(player.score).padStart(6, '0');
     ui.timer.textContent = String(Math.ceil(remainingTime)).padStart(3, '0');
     ui.dashGauge.value = player.dash;
-    ui.charge?.classList.toggle('charging',player.chargeTime>0);
     if(ui.wingAttack){const ready=player.wingCooldown<=0&&!player.dead;ui.wingAttack.classList.toggle('ready',ready);ui.wingAttack.classList.toggle('cooldown',!ready);ui.wingAttack.setAttribute?.('aria-label',ready?'翼を飛ばす攻撃・使用可能':`翼攻撃・再使用まで${player.wingCooldown.toFixed(1)}秒`);}
     ui.oxygenGauge.value=oxygen;
     if(boss) ui.bossHp.style.width=`${Math.max(0,boss.hp/boss.maxHp*100)}%`;
@@ -1915,7 +1916,10 @@
     if(renderState==='fall')return 'fall';
     if(renderState==='land')return 'land';
     if(renderState==='hurt'||renderState==='charge')return 'alert';
-    if(renderState==='walk')return Math.sin(player.anim)>0?'step1':'step2';
+    if(renderState==='walk'){
+      const cycle=Math.floor(player.anim)%4;
+      return cycle===1?'step1':cycle===3?'step2':'idle';
+    }
     if(renderState!=='idle')return null;
     if(player.blinkTime>0)return 'blink';
     if(player.idleAction==='lookLeft')return 'lookLeft';
@@ -1927,6 +1931,41 @@
     return 'idle';
   }
 
+  function playerVisualPose(renderState=player.state,facing=player.facing,speed=Math.abs(player.vx)) {
+    const stride=Math.sin(player.anim),strideSide=Math.cos(player.anim),pace=Math.min(1,speed/480);
+    let shiftX=0,bob=0,tilt=0,scaleX=1,scaleY=1;
+    if(renderState==='idle'){
+      bob=Math.sin(elapsed*2.35)*2.4+(player.idleAction==='step'?Math.sin(player.idleActionTime*12)*3:0);
+      tilt=player.idleAction==='lookLeft'?-0.035:(player.idleAction==='lookRight'||player.idleAction==='backLook')?0.035:Math.sin(elapsed*1.15)*.012;
+      scaleX=1+Math.sin(elapsed*2.35)*.008;scaleY=1-Math.sin(elapsed*2.35)*.01;
+    }else if(renderState==='walk'){
+      bob=-Math.abs(stride)*(4+pace*3);shiftX=strideSide*facing*(1.2+pace*1.8);
+      tilt=facing*(.042+strideSide*.026);scaleX=1+Math.abs(stride)*.025;scaleY=1-Math.abs(stride)*.018;
+    }else if(renderState==='dash'){
+      bob=-2;shiftX=facing*5;tilt=facing*.12;scaleX=1.08;scaleY=.94;
+    }else if(renderState==='jump'){
+      const takeoff=Math.min(1,player.jumpPoseTime/.14);bob=-takeoff*2;tilt=facing*.035;scaleX=.94-takeoff*.02;scaleY=1.07+takeoff*.03;
+    }else if(renderState==='doubleJump'){
+      tilt=facing*.055;scaleX=.90;scaleY=1.09;
+    }else if(renderState==='fall'){
+      bob=2;tilt=facing*.065;scaleX=1.035;scaleY=.975;
+    }else if(renderState==='land'){
+      const impact=Math.min(1,player.justLanded/.20);bob=3*impact;scaleX=1.10+impact*.035;scaleY=.88-impact*.035;
+    }else if(renderState==='wingAttack'){
+      const recoil=Math.sin(Math.min(1,player.wingAttackTime/.62)*Math.PI);shiftX=-facing*recoil*4;tilt=-facing*recoil*.045;scaleX=1+recoil*.025;scaleY=1-recoil*.018;
+    }else if(renderState==='swordAttack'||renderState==='rushAttack'){
+      tilt=facing*.075;scaleX=1.04;scaleY=.97;
+    }else if(renderState==='hurt'){
+      shiftX=-facing*4;tilt=-facing*.10;scaleX=1.04;scaleY=.96;
+    }
+    if(player.turnPoseTime>0&&renderState==='walk'){
+      const turn=Math.min(1,player.turnPoseTime/.14);shiftX-=facing*4*turn;tilt-=facing*.11*turn;scaleX*=.96;scaleY*=1.035;
+    }
+    if(player.invincible>0)tilt+=Math.sin(elapsed*35)*.12;
+    const celebration=renderState==='clear'?1+Math.sin(player.clearTime*10)*.09:1;
+    return {shiftX,bob,tilt,scaleX:scaleX*celebration,scaleY:scaleY*celebration,stride,pace};
+  }
+
   function drawHeldSwordOverlay(renderState) {
     if(!player.hasSword||renderState==='swordAttack'||!phoenixSwordImage.complete||!phoenixSwordImage.naturalWidth)return;
     ctx.save();ctx.translate(player.w*.24,-player.h*.05);ctx.rotate(renderState==='wingAttack'?-1.18:-.55);ctx.shadowColor='#ff4b1d';ctx.shadowBlur=18;ctx.drawImage(phoenixSwordImage,-16,-98,54,108);ctx.restore();
@@ -1934,16 +1973,8 @@
 
   function drawFeniSprite(x, y, facing, rotation = 0, alpha = 1, forcedMode = null, forcedState = null) {
     const renderState=forcedState||player.state;
-    const stride = Math.sin(player.anim); const speed = Math.abs(player.vx);
-    const idleBreath=renderState==='idle'?Math.sin(elapsed*2.35)*2.4:0;
-    const idleShift=renderState==='idle'&&player.idleAction==='step'?Math.sin(player.idleActionTime*12)*3:0;
-    const bob = renderState==='dash'?0:player.grounded && speed > 25 ? -Math.abs(stride) * 6 : idleBreath+idleShift;
-    const idleTilt=renderState==='idle'?(player.idleAction==='lookLeft'?-0.035:(player.idleAction==='lookRight'||player.idleAction==='backLook') ? 0.035 : Math.sin(elapsed*1.15)*.012):0;
-    const tilt = player.invincible > 0 ? Math.sin(elapsed*35)*.12 : renderState === 'walk' ? .07*facing : renderState === 'fall' ? .05*facing : idleTilt;
-    const squash = renderState === 'land' ? .88 : renderState === 'doubleJump' ? 1.1 : 1;
-    const stretchX = renderState === 'jump' ? .92 : renderState === 'doubleJump' ? .88 : 1;
-    const celebration = renderState === 'clear' ? 1 + Math.sin(player.clearTime * 10) * .09 : 1;
-    ctx.save(); ctx.globalAlpha *= alpha; if(renderState==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2,y+player.h/2+bob); ctx.rotate(rotation+tilt); ctx.scale(facing * stretchX * celebration,squash * celebration);
+    const visual=playerVisualPose(renderState,facing,Math.abs(player.vx));
+    ctx.save(); ctx.globalAlpha *= alpha; if(renderState==='clear'){ctx.shadowColor='#fff36a';ctx.shadowBlur=28;} ctx.translate(x+player.w/2+visual.shiftX,y+player.h/2+visual.bob); ctx.rotate(rotation+visual.tilt); ctx.scale(facing*visual.scaleX,visual.scaleY);
     const renderMode=forcedMode||playerMode;
     const rushPunch=!forcedMode&&renderMode==='muscle'&&player.attackTime>0&&!player.hasSword;
     let expressionState=null;
@@ -1997,8 +2028,28 @@
     return progress < .48 ? 'swing' : 'finish';
   }
 
+  function drawPlayerMotionAccents() {
+    const speed=Math.abs(player.vx);
+    ctx.save();ctx.lineCap='round';
+    if(player.grounded&&player.state==='walk'&&speed>55){
+      const pulse=.25+Math.abs(Math.sin(player.anim))*.3;
+      ctx.globalAlpha=pulse;ctx.strokeStyle=playerMode==='king'?'#ffe55a':'#fff0bd';ctx.shadowColor='#ff7a28';ctx.shadowBlur=8;ctx.lineWidth=3;
+      const rear=player.facing>0?player.x-8:player.x+player.w+8;
+      for(let line=0;line<2;line++){const y=player.y+player.h-12-line*9;ctx.beginPath();ctx.moveTo(rear,y);ctx.lineTo(rear-player.facing*(14+line*8+speed*.025),y+line*2);ctx.stroke();}
+    }
+    if(player.justLanded>0){
+      const impact=Math.min(1,player.justLanded/.20),radius=20+(1-impact)*48;
+      ctx.globalAlpha=impact*.55;ctx.strokeStyle='#ffe2a0';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(player.x+player.w/2,player.y+player.h-2,radius,7+radius*.08,0,0,Math.PI*2);ctx.stroke();
+    }
+    if(player.turnPoseTime>0&&player.grounded){
+      const turn=Math.min(1,player.turnPoseTime/.14);ctx.globalAlpha=turn*.55;ctx.strokeStyle='#ffd36d';ctx.lineWidth=4;ctx.beginPath();ctx.arc(player.x+player.w/2,player.y+player.h-18,28,-.25,1.15);ctx.stroke();
+    }
+    ctx.restore();
+  }
+
   function drawPlayer() {
     if (player.invincible > 0 && Math.floor(elapsed * 14) % 2) return;
+    drawPlayerMotionAccents();
     if(playerMode==='lcd'){ctx.save();ctx.strokeStyle='#61ecff';ctx.lineWidth=3;ctx.globalAlpha=.6;for(let i=0;i<7;i++){const y=player.y+Math.random()*player.h;ctx.beginPath();ctx.moveTo(player.x-25-Math.random()*120,y);ctx.lineTo(player.x-160-Math.random()*160,y);ctx.stroke();}ctx.restore();}
     if(playerMode==='lcd'&&player.shields>0){ctx.save();ctx.translate(player.x+player.w/2,player.y+player.h/2);ctx.globalAlpha=.2+(player.shieldHit>0 ? 0.38 : 0);ctx.fillStyle='#65eaff';ctx.shadowColor='#42dfff';ctx.shadowBlur=30;for(let layer=0;layer<player.shields;layer++){ctx.beginPath();ctx.ellipse(0,0,player.w*(.78+layer*.22),player.h*(.69+layer*.12),0,0,7);ctx.fill();ctx.globalAlpha+=.1;ctx.strokeStyle=layer===0?'#d8ffff':'#48dfff';ctx.lineWidth=3;ctx.stroke();}ctx.restore();}
     if(playerMode==='king'){ctx.save();ctx.globalAlpha=.48;ctx.fillStyle='#ffd52f';ctx.shadowColor='#fff09a';ctx.shadowBlur=35;ctx.beginPath();ctx.ellipse(player.x+player.w/2,player.y+player.h/2,player.w*.8,player.h*.75,0,0,7);ctx.fill();ctx.restore();}
@@ -2095,7 +2146,7 @@
     animationFrame = requestAnimationFrame(loop);
   }
 
-  const keyMap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down', Space:'jump', KeyX:'attack', KeyZ:'wing', KeyC:'charge' };
+  const keyMap = { ArrowLeft:'left', KeyA:'left', ArrowRight:'right', KeyD:'right', ArrowUp:'up', KeyW:'up', ArrowDown:'down', KeyS:'down', Space:'jump', KeyX:'attack', KeyZ:'wing' };
   addEventListener('keydown', (event) => {
     if ((event.code === 'Enter' || event.code === 'Space') && (mode === 'title' || mode === 'clear' || mode === 'gameover')) { event.preventDefault(); startGame(); return; }
     if (event.code === 'Escape' && mode === 'playing') { paused = !paused; return; }
@@ -2152,7 +2203,7 @@
       spawnEnemyProjectile:(kind='bolt')=>spawnEnemyShot({kind,x:player.x+420,y:player.y+20,w:20,h:20,vx:190,vy:0,energy:true}),
       respawn:()=>respawnAtCheckpoint('DEBUG RESPAWN'),
       defeatBoss:()=>{if(boss){boss.hp=1;boss.hit=0;boss.state=bossMoveState();boss.intro=true;boss.active=true;damageBoss(99);}},
-      state:()=>({mode,currentStage:STAGES[currentStage].id,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),jumpCount:player.jumpCount,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose()},
+      state:()=>({mode,currentStage:STAGES[currentStage].id,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),visualPose:playerVisualPose(),turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive).length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,12).map((enemy)=>({type:enemy.type,attack:enemy.attack,alternateAttack:enemy.alternateAttack,attackCooldown:enemy.attackCooldown,x:enemy.x,y:enemy.y,w:enemy.w,h:enemy.h})),hazardPositions:hazards.map((hazard)=>({type:hazard.type,x:hazard.x,y:hazard.y,w:hazard.w,h:hazard.h})),coinPositions:coins.filter((coin)=>!coin.collected).slice(0,12).map((coin)=>({x:coin.x,y:coin.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),jumpPadVelocity:JUMP_PAD_VELOCITY,jumpPadPositions:jumpPads.map((pad)=>({x:pad.x,y:pad.y,w:pad.w,h:pad.h})),oneWayPlatforms:allPlatforms().filter(isOneWayPlatform).slice(0,128).map((platform)=>({x:platform.x,y:platform.y,w:platform.w,h:platform.h,surfaceRoute:!!platform.surfaceRoute})),transformTypes:transformItems.filter((item)=>!item.collected).map((item)=>item.type),kingWeight:TRANSFORM_WEIGHTS.filter((type)=>type==='king').length/TRANSFORM_WEIGHTS.length,shockwaves:shockwaves.length,shockwaveKinds:shockwaves.map((wave)=>wave.kind||'ground'),shockwaveData:shockwaves.map((wave)=>({kind:wave.kind||'ground',maxDistance:wave.maxDistance||0,breaksWalls:!!wave.breaksWalls})),rushTrails:rushTrails.length,projectileKinds:droplets.map((drop)=>drop.kind||'droplet'),
         boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),wingProjectiles:wingShots.map((shot)=>({x:shot.x,y:shot.y,vx:shot.vx,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot)})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
         world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),stateSheets:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,{loaded:record.ready,source:record.source}])),motionSheets:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,{loaded:record.ready,source:record.source}])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),boss:{loaded:bossImage.complete&&bossImage.naturalWidth>0,width:bossImage.naturalWidth,height:bossImage.naturalHeight},sword:{loaded:phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}]))}})

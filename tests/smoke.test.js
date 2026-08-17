@@ -44,11 +44,11 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
     'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
-    'bossName', 'bossHp', 'goalLock', 'attack', 'charge', 'wingAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
+    'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
-  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'charge', 'wing', 'attack', 'jump'].map((name) => {
+  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'wing', 'attack', 'jump'].map((name) => {
     const button = new Element();
     button.dataset.input = name;
     return button;
@@ -175,6 +175,9 @@ function testCoreControls() {
   game.setInput('dashRight', false);
   assert.ok(game.state().player.vx > 300, 'right dash reaches dash speed');
   assert.equal(game.state().player.state, 'dash', 'dash pose remains locked instead of flickering to walk/air frames');
+  assert.ok(game.state().player.visualPose.scaleX > 1.05, 'dash pose stretches forward like an action-game character');
+  assert.ok(game.state().player.visualPose.scaleY < .97, 'dash pose compresses vertically for a stronger silhouette');
+  assert.ok(Math.abs(game.state().player.visualPose.tilt) >= .1, 'dash pose visibly leans into its direction');
   game.step(.08);
   assert.equal(game.state().player.state, 'dash', 'dash pose lock survives the button release transition');
 
@@ -183,6 +186,15 @@ function testCoreControls() {
   game.step(.25);
   game.setInput('dashLeft', false);
   assert.ok(game.state().player.vx < -300, 'left dash reaches dash speed');
+
+  game.setStage('1-1');
+  game.setInput('right', true);
+  game.step(.18);
+  game.setInput('right', false);
+  game.setInput('left', true);
+  game.step(.03);
+  game.setInput('left', false);
+  assert.ok(game.state().player.turnPoseTime > 0, 'changing direction triggers a short anticipation pose');
 
   game.setStage('1-1');
   game.setInput('jump', true);
@@ -319,13 +331,12 @@ function testStaminaCoinsAndEnemyArsenal() {
   game.setInput('dashLeft', false);
   game.step(.03);
   const spent = game.state().player.dash;
-  assert.ok(spent < 70, 'dash consumes stamina before a manual recharge');
-  game.setInput('charge', true);
-  game.step(.55);
-  const charged = game.state().player;
-  game.setInput('charge', false);
-  assert.ok(charged.chargeTime > 0, 'dedicated CHARGE input enters manual stamina recovery');
-  assert.ok(charged.dash > spent + 35, 'manual CHARGE restores stamina rapidly');
+  assert.equal(game.state().dashBalance.drainPerSecond, 28, 'dash drain is reduced to the longer-lasting balance');
+  assert.ok(spent > 63 && spent < 69, 'a full dash gauge now lasts about 3.6 seconds');
+  assert.equal(game.state().dashBalance.recoveryPerSecond, 12, 'stamina naturally recovers without a dedicated button');
+  game.step(1);
+  assert.ok(game.state().player.dash > spent + 10, 'stamina recovers automatically after releasing dash');
+  assert.throws(() => game.setInput('charge', true), /Unknown input/, 'dedicated charge input is removed');
 
   game.setStage('1-1');
   game.collectCoins(4);
@@ -600,6 +611,10 @@ function testAssetsAndSyntaxSurface() {
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
+  assert.doesNotMatch(html, /data-input="charge"|STAMINA<br>CHARGE/, 'dedicated dash charge button is absent from the mobile UI');
+  const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+  assert.doesNotMatch(css, /charge-control/, 'removed charge control leaves no stale responsive CSS');
+  assert.match(css, /grid-template-areas:"wing jump" "attack jump"/, 'portrait action layout closes the removed charge-button row');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
