@@ -17,6 +17,20 @@
     oxygenHud: $('#oxygenHud'), oxygenGauge: $('#oxygenGauge'), resultFeni: $('#resultFeni')
   };
 
+  function createLazyImage(source) {
+    const image=new Image();image.repairSource=source;image.repairRequested=false;return image;
+  }
+
+  function ensureImage(image) {
+    if(!image||image.repairRequested)return image;
+    image.repairRequested=true;image.src=image.repairSource;return image;
+  }
+
+  function ensureSheet(record) {
+    if(!record||record.requested)return record;
+    record.requested=true;record.image.src=record.source;return record;
+  }
+
   let WORLD_WIDTH = 7600;
   let WORLD_HEIGHT = 820;
   const FLOOR_Y = 610;
@@ -26,9 +40,9 @@
   const PLAYER_IMAGE_SOURCES = { normal: './feni.png', battery: './feni_battery.png', lcd: './feni_lcd.png', king: './feni_king.png', muscle: './fenichan_gorimacho.png', musclePunch: './fenichan_gorimacho_punch.png', dash: './feni_dash.png' };
   const playerImages = {};
   for (const [name, source] of Object.entries(PLAYER_IMAGE_SOURCES)) {
-    playerImages[name] = new Image();
-    playerImages[name].src = source;
+    playerImages[name] = createLazyImage(source);
   }
+  ensureImage(playerImages.normal);
   const STATE_FRAME_INDEX = { dash:0, goal:1, swordReady:2, swordSwing:3, revive:4 };
   // Generated compositions use different amounts of transparent padding. These
   // per-state corrections equalize visible alpha height to NORMAL Feni, so mode
@@ -47,9 +61,9 @@
   const playerStateSheets = {};
   let activeNoticePose=null, activeResultPose=null;
   for (const [name, source] of Object.entries(PLAYER_STATE_SOURCES)) {
-    const image=new Image();const record={image,drawable:null,ready:false,source};playerStateSheets[name]=record;
+    const image=new Image();const record={image,drawable:null,ready:false,requested:false,source};playerStateSheets[name]=record;
     image.onload=()=>{record.drawable=image;record.ready=true;if(activeNoticePose?.mode===name)drawStateFrameToCanvas(ui.noticePortrait,name,activeNoticePose.state);if(activeResultPose?.mode===name)drawStateFrameToCanvas(ui.resultFeni,name,activeResultPose.state);};
-    image.src=source;
+    if(name==='normal')ensureSheet(record);
   }
   const MOTION_FRAME_INDEX = {
     idle:0, lookLeft:1, lookRight:2, blink:3, step1:4, step2:5, alert:6, stretch:7,
@@ -61,9 +75,9 @@
   };
   const playerMotionSheets = {};
   for (const [name, source] of Object.entries(PLAYER_MOTION_SOURCES)) {
-    const image=new Image();const record={image,drawable:null,ready:false,source};playerMotionSheets[name]=record;
+    const image=new Image();const record={image,drawable:null,ready:false,requested:false,source};playerMotionSheets[name]=record;
     image.onload=()=>{record.drawable=image;record.ready=true;};
-    image.src=source;
+    if(name==='normal')ensureSheet(record);
   }
   // Each source illustration has different transparent padding. Cropping to the
   // visible character before drawing keeps every mode at the original normal
@@ -83,21 +97,24 @@
     boardTrooper:'./enemy_board_trooper.png', drillMech:'./enemy_tool_mech.png', mechaShark:'./enemy_mecha_shark.png',
     subDrone:'./enemy_battle_drone.png', battleDrone:'./enemy_battle_drone.png', jetMech:'./enemy_battle_drone.png'
   })) {
-    enemyImages[name] = new Image();
-    enemyImages[name].src = source;
+    enemyImages[name] = createLazyImage(source);
   }
-  const bossImage = new Image();
-  bossImage.src = './boss_mega_bug_titan.png';
-  const phoenixSwordImage = new Image();
-  phoenixSwordImage.src = './phoenix_sword.png';
+  const bossImage = createLazyImage('./boss_mega_bug_titan.png');
+  const phoenixSwordImage = createLazyImage('./phoenix_sword.png');
   const swordPoseImages = {};
   for (const [name, source] of Object.entries({
     ready: './feni_sword_ready.png',
     swing: './feni_sword_swing.png',
     finish: './feni_sword_finish.png'
   })) {
-    swordPoseImages[name] = new Image();
-    swordPoseImages[name].src = source;
+    swordPoseImages[name] = createLazyImage(source);
+  }
+
+  function preloadPlayerMode(modeName) {
+    ensureImage(playerImages[modeName]||playerImages.normal);
+    if(modeName==='muscle')ensureImage(playerImages.musclePunch);
+    ensureSheet(playerStateSheets[modeName]||playerStateSheets.normal);
+    ensureSheet(playerMotionSheets[modeName]||playerMotionSheets.normal);
   }
   const SWORD_ATTACK_DURATION = .30;
   const SWORD_POSE_META = {
@@ -184,6 +201,17 @@
   let bossDefeated = false;
   let goalUnlocked = true;
   let breakables = [], currents = [], bubbles = [], gimmicks = [], oxygen = 100, oxygenDamageTimer = 0, chaserWall = null;
+
+  function preloadNearbyAssets() {
+    if(!player)return;
+    const modeRange=Math.max(1350,viewportWidth*1.25);
+    for(const item of transformItems||[])if(!item.collected&&Math.abs(item.x-player.x)<modeRange)preloadPlayerMode(item.type);
+    if(swordItem&&player.x>swordItem.x-2100)ensureImage(phoenixSwordImage);
+    if(bossGate&&player.x>bossGate.x-2500){
+      if(boss?.type==='shark')ensureImage(enemyImages.mechaShark);else ensureImage(bossImage);
+    }
+  }
+
   const STAGES = [
     { id: '1-1', name: 'スマホ修理商店街', theme: 'city', width: 10600, time: 215 },
     { id: '1-2', name: '連続ピット工場', theme: 'city', width: 9800, time: 200 },
@@ -952,6 +980,7 @@
   }
 
   function applyMode(nextMode) {
+    preloadPlayerMode(nextMode);
     clearMode(false);
     playerMode = nextMode;
     modeTimer = MODE_DURATIONS[nextMode];
@@ -2025,6 +2054,7 @@
     remainingTime = Math.max(0, remainingTime - dt);
     if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
     if(player.dead&&player.respawnTimer>0){player.respawnTimer=Math.max(0,player.respawnTimer-dt);if(player.respawnTimer<=0)respawnAtCheckpoint(player.respawnMessage||'REPAIR RESTART!');}
+    preloadNearbyAssets();
     updateObjects(dt);
     if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
     // Frame both fighters in the boss arena. The zoom is eased and changes the
@@ -2636,8 +2666,9 @@
     }
     let imageKey = rushPunch ? 'musclePunch' : renderMode;
     if(renderMode==='normal'&&renderState==='dash'&&!player.hasSword)imageKey='dash';
-    const currentImage=playerImages[imageKey];
-    const meta=PLAYER_SPRITE_META[imageKey]||PLAYER_SPRITE_META.normal;
+    let currentImage=playerImages[imageKey],resolvedImageKey=imageKey;
+    if(!currentImage?.complete||!currentImage.naturalWidth){currentImage=playerImages.normal;resolvedImageKey='normal';}
+    const meta=PLAYER_SPRITE_META[resolvedImageKey]||PLAYER_SPRITE_META.normal;
     if (currentImage.complete && currentImage.naturalWidth) {
       const normalAspect=PLAYER_SPRITE_META.normal.sw/PLAYER_SPRITE_META.normal.sh;
       const drawHeight=player.h*1.32;
@@ -2720,17 +2751,9 @@
       const dx=enemy.targetX-(enemy.x+enemy.w/2),dy=enemy.targetY-(enemy.y+enemy.h/2),len=Math.hypot(dx,dy)||1,guide=Math.min(420,len);ctx.setLineDash([12,9]);ctx.beginPath();ctx.moveTo(0,0);ctx.lineTo(dx/len*guide,dy/len*guide);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#ff352d';ctx.strokeStyle='#fff';ctx.lineWidth=3;ctx.beginPath();ctx.arc(dx/len*Math.min(guide+12,len),dy/len*Math.min(guide+12,len),13,0,7);ctx.fill();ctx.stroke();
       if(['lightning','fireRain','depthCharge','rail'].includes(enemy.pendingAttack)){ctx.globalAlpha=.32+.25*Math.sin(elapsed*24);ctx.beginPath();ctx.ellipse(dx,dy,38,13,0,0,7);ctx.fill();ctx.stroke();ctx.globalAlpha=.9;}
       ctx.fillStyle='#fff';ctx.font='bold 18px Arial';ctx.textAlign='center';ctx.fillText('!',dx/len*Math.min(guide+12,len),dy/len*Math.min(guide+12,len)+6);ctx.globalAlpha=1;}
-    const enemyImage=enemyImages[enemy.type];
-    if(enemyImage?.complete&&enemyImage.naturalWidth){
-      if(!enemy.alive)ctx.scale(1.35,.24);
-      else{
-        const faceLeft=enemy.allied?enemy.aimFacing<0:warning?enemy.aimFacing<0:enemy.vx<-.5||(Math.abs(enemy.vx)<=.5&&player.x<enemy.x);
-        ctx.scale(faceLeft?1:-1,1);
-      }
-      const spriteSize=Math.max(enemy.w,enemy.h)*(enemy.heavy?1.88:1.72);
-      ctx.drawImage(enemyImage,-spriteSize/2,-spriteSize/2,spriteSize,spriteSize);
-      ctx.restore();return;
-    }
+    // Restore the original lightweight canvas enemy designs. The later 512px
+    // image replacements changed their silhouette and also uploaded textures
+    // for enemies that were nowhere near the camera.
     if(!enemy.alive)ctx.scale(1.35,.24);else ctx.scale(facing,1);
     ctx.lineWidth=4;ctx.strokeStyle='#c5d8df';
     if(enemy.type==='mechaShark'){
@@ -2865,7 +2888,7 @@
       state:()=>({mode,currentStage:STAGES[currentStage].id,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive&&!enemy.allied).length,alliesAlive:enemies.filter((enemy)=>enemy.alive&&enemy.allied).length,kingClones:kingClones.length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,12).map((enemy)=>({type:enemy.type,attack:enemy.attack,alternateAttack:enemy.alternateAttack,attackCooldown:enemy.attackCooldown,allied:enemy.allied,hp:enemy.hp,maxHp:enemy.maxHp,hit:enemy.hit,x:enemy.x,y:enemy.y,w:enemy.w,h:enemy.h})),gimmicks:gimmicks.map((gimmick)=>({type:gimmick.type,x:gimmick.x,y:gimmick.y,w:gimmick.w,h:gimmick.h,targetX:gimmick.targetX,targetY:gimmick.targetY,active:!!gimmick.active,warning:!!gimmick.warning})),hazardPositions:hazards.map((hazard)=>({type:hazard.type,x:hazard.x,y:hazard.y,w:hazard.w,h:hazard.h})),coinPositions:coins.filter((coin)=>!coin.collected).slice(0,12).map((coin)=>({x:coin.x,y:coin.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),jumpPadVelocity:JUMP_PAD_VELOCITY,jumpPadPositions:jumpPads.map((pad)=>({x:pad.x,y:pad.y,w:pad.w,h:pad.h})),oneWayPlatforms:allPlatforms().filter(isOneWayPlatform).slice(0,128).map((platform)=>({x:platform.x,y:platform.y,w:platform.w,h:platform.h,surfaceRoute:!!platform.surfaceRoute})),transformTypes:transformItems.filter((item)=>!item.collected).map((item)=>item.type),kingWeight:TRANSFORM_WEIGHTS.filter((type)=>type==='king').length/TRANSFORM_WEIGHTS.length,shockwaves:shockwaves.length,shockwaveKinds:shockwaves.map((wave)=>wave.kind||'ground'),shockwaveData:shockwaves.map((wave)=>({kind:wave.kind||'ground',maxDistance:wave.maxDistance||0,breaksWalls:!!wave.breaksWalls})),rushTrails:rushTrails.length,projectileKinds:droplets.map((drop)=>drop.kind||'droplet'),
         boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),wingProjectiles:wingShots.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),piercing:!!shot.piercing})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
-        world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},render:{touchDevice,reducedEffects,dpr,backingWidth:canvas.width,backingHeight:canvas.height},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),stateSheets:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,{loaded:record.ready,source:record.source}])),motionSheets:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,{loaded:record.ready,source:record.source}])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),boss:{loaded:bossImage.complete&&bossImage.naturalWidth>0,width:bossImage.naturalWidth,height:bossImage.naturalHeight},sword:{loaded:phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}]))}})
+        world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},render:{touchDevice,reducedEffects,dpr,backingWidth:canvas.width,backingHeight:canvas.height,enemyArt:'classicCanvas',assetRequests:{player:Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,!!image.repairRequested])),state:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,record.requested])),motion:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,record.requested])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,!!image.repairRequested])),boss:!!bossImage.repairRequested,sword:!!phoenixSwordImage.repairRequested}},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),stateSheets:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),motionSheets:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),boss:{loaded:bossImage.repairRequested&&bossImage.complete&&bossImage.naturalWidth>0,width:bossImage.naturalWidth,height:bossImage.naturalHeight},sword:{loaded:phoenixSwordImage.repairRequested&&phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}]))}})
     });
   }
 

@@ -788,12 +788,44 @@ function testAssetsAndSyntaxSurface() {
   assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'optimized theme-specific background renderer is active');
   assert.doesNotMatch(gameSource, /fillText\(['"]ARMOR['"]/, 'enemy art is restored without the added permanent ARMOR label');
   assert.doesNotMatch(gameSource, /enemy\.hit>0\)ctx\.filter/, 'enemy art is restored without the added hit-color filter');
+  assert.doesNotMatch(gameSource, /ctx\.drawImage\(enemyImage\b/, 'regular enemies use the pre-image classic canvas renderer again');
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
+  assert.match(html, /敵デザイン復元 · LIGHT FIX 08\.18-D[\s\S]+game\.js\?v=20260818d/, 'the visible build badge and cache-busted game script identify the restored build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
   }
+}
+
+function testLazyAssetLoadingAndClassicEnemies() {
+  const game=createGame({width:390,height:844,touch:true});
+  let state=game.state();
+  assert.equal(state.render.enemyArt,'classicCanvas','the original lightweight enemy renderer is active');
+  assert.equal(state.render.assetRequests.player.normal,true,'normal Feni is requested at startup');
+  assert.equal(state.render.assetRequests.state.normal,true,'normal expression sheet is requested at startup');
+  assert.equal(state.render.assetRequests.motion.normal,true,'normal motion sheet is requested at startup');
+  assert.equal(state.render.assetRequests.player.lcd,false,'inactive transformation base art is deferred');
+  assert.equal(state.render.assetRequests.state.lcd,false,'inactive transformation expression art is deferred');
+  assert.equal(state.render.assetRequests.motion.lcd,false,'inactive transformation motion art is deferred');
+  assert.ok(Object.values(state.render.assetRequests.enemies).every((requested)=>!requested),'regular enemy textures are not loaded for classic rendering');
+  assert.equal(state.render.assetRequests.boss,false,'boss art is deferred outside its arena');
+  assert.equal(state.render.assetRequests.sword,false,'sword art is deferred outside its arena');
+
+  game.setMode('lcd');state=game.state();
+  assert.equal(state.render.assetRequests.player.lcd,true,'LCD base art loads when its mode is needed');
+  assert.equal(state.render.assetRequests.state.lcd,true,'LCD expressions load when its mode is needed');
+  assert.equal(state.render.assetRequests.motion.lcd,true,'LCD motions load when its mode is needed');
+
+  game.setStage('1-5');
+  state=game.state();game.teleport(state.boss.gateX-900,470);game.step(.05);state=game.state();
+  assert.equal(state.render.assetRequests.boss,true,'Titan art is prefetched near the arena');
+  assert.equal(state.render.assetRequests.sword,true,'Phoenix Sword art is prefetched before its pickup');
+
+  const sharkGame=createGame();sharkGame.setStage('2-5');state=sharkGame.state();
+  sharkGame.teleport(state.boss.gateX-900,300);sharkGame.step(.05);state=sharkGame.state();
+  assert.equal(state.render.assetRequests.enemies.mechaShark,true,'shark boss art is prefetched near its arena');
+  assert.ok(Object.entries(state.render.assetRequests.enemies).filter(([name])=>name!=='mechaShark').every(([,requested])=>!requested),'unused regular enemy textures stay deferred');
 }
 
 function testViewportMatrix() {
@@ -884,5 +916,6 @@ testRushPunch();
 testBossGateAndChaseWall();
 testViewportMatrix();
 testAssetsAndSyntaxSurface();
+testLazyAssetLoadingAndClassicEnemies();
 testSoundRuntime();
 console.log('Repair Hero smoke tests passed');
