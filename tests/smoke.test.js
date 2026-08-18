@@ -785,7 +785,10 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /grid-template-areas:"special wing jump" "attack attack jump"/, 'portrait action layout fits ultimate, wing, attack, and jump controls');
   assert.match(gameSource, /drawImage\(phoenixSwordImage,[^\n]+swordSize,swordSize\)/, 'the canonical Phoenix Sword is rendered without aspect-ratio distortion');
   assert.doesNotMatch(gameSource, /ctx\.drawImage\(swordPoseImage/, 'old baked sword-pose art is not drawn over transformed characters');
-  assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'cinematic theme-specific background renderer is active');
+  assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'optimized theme-specific background renderer is active');
+  assert.doesNotMatch(gameSource, /fillText\(['"]ARMOR['"]/, 'enemy art is restored without the added permanent ARMOR label');
+  assert.doesNotMatch(gameSource, /enemy\.hit>0\)ctx\.filter/, 'enemy art is restored without the added hit-color filter');
+  assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -806,6 +809,11 @@ function testViewportMatrix() {
     const state = game.state();
     assert.ok(state.world.viewportWidth > 0 && state.world.viewportHeight > 0, `${label}: viewport initializes`);
     assert.ok(state.player.y < state.world.height, `${label}: player remains inside the stage`);
+    if (touch) {
+      assert.equal(state.render.reducedEffects, true, `${label}: touch performance profile is active`);
+      assert.ok(state.render.dpr <= 1.5, `${label}: canvas DPR is capped for mobile rendering`);
+      assert.ok(state.render.backingWidth * state.render.backingHeight <= 1805000, `${label}: canvas stays inside the mobile pixel budget`);
+    }
     if (height > width) {
       const ratio = (112 * 1.32) / state.world.viewportHeight;
       assert.ok(ratio >= .14 && ratio <= .18, `${label}: portrait player height stays within 14–18%`);
