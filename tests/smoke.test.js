@@ -562,12 +562,12 @@ function testModeUltimatesSwordGripAndClashes() {
   assert.equal(game.state().player.ultimatePhase, 'cutin', 'normal ultimate starts with the cut-in');
   assert.equal(game.state().cutinVisible, true, 'cut-in overlay is visible before dialogue');
   assert.equal(game.state().wingProjectiles.length, 0, 'attack does not fire before the cut-in and dialogue');
-  game.step(.78);
+  game.step(.46);
   assert.equal(game.state().player.ultimatePhase, 'dialogue', 'cut-in advances to dialogue');
   assert.equal(game.state().cutinVisible, false, 'cut-in closes before the speech bubble');
   assert.ok(game.state().notice.includes('おいどんを甘く見るなよ！！'), 'normal ultimate uses its requested line');
   assert.equal(game.state().wingProjectiles.length, 0, 'attack still waits until dialogue completes');
-  game.step(1.66);
+  game.step(1.22);
   assert.equal(game.state().player.ultimatePhase, null, 'dialogue advances to the actual attack');
   game.step(.35);
   assert.ok(game.state().wingProjectiles.filter((shot) => shot.kind === 'fireFeather').length >= 5, 'normal ultimate launches a barrage of fire feathers');
@@ -583,9 +583,9 @@ function testModeUltimatesSwordGripAndClashes() {
   assert.ok(game.state().player.hp > damagedHp, 'battery mode continuously regenerates without a post-hit delay');
   assert.equal(game.ultimate(), true, 'battery ultimate activates');
   assert.equal(game.state().alliesAlive, 0, 'battery ally waits for the presentation sequence');
-  game.step(.78);
+  game.step(.46);
   assert.ok(game.state().notice.includes('元気1000倍！！負ける気がしねぇ！！'), 'battery ultimate uses its requested line');
-  game.step(1.66);
+  game.step(1.22);
   assert.equal(game.state().alliesAlive, 1, 'battery ultimate converts exactly one enemy into an ally after dialogue');
   game.step(.4);
   assert.ok(game.state().wingProjectiles.some((shot) => shot.kind === 'allyPulse'), 'the allied enemy attacks other enemies');
@@ -596,10 +596,10 @@ function testModeUltimatesSwordGripAndClashes() {
   assert.equal(game.state().player.shields, 5, 'LCD barrier is upgraded to five layers');
   game.ultimate();
   assert.equal(game.state().player.ultimatePhase, 'cutin', 'LCD blink starts with its cut-in');
-  game.step(.78);
+  game.step(.46);
   assert.ok(game.state().notice.includes('俯瞰した俺をもう誰も止められない…'), 'LCD ultimate uses its requested line');
   assert.equal(game.state().enemiesAlive, lcdBefore, 'LCD does not teleport before its dialogue');
-  game.step(1.66);
+  game.step(1.22);
   game.step(.82);
   assert.ok(game.state().enemiesAlive <= lcdBefore - 4, 'LCD ultimate chains instant-movement defeats');
   assert.ok(game.state().player.y >= 0 && game.state().player.y < game.state().world.height, 'LCD chain teleport always lands inside the stage');
@@ -619,9 +619,9 @@ function testModeUltimatesSwordGripAndClashes() {
   game.setStage('1-1');
   game.setMode('muscle');
   game.ultimate();
-  game.step(.78);
+  game.step(.46);
   assert.ok(game.state().notice.includes('ウホォ/ / /止まんなァい゛い゛！！゛'), 'muscle ultimate uses its requested line');
-  game.step(1.66);
+  game.step(1.22);
   game.step(.58);
   const radialShots = game.state().wingProjectiles.filter((shot) => shot.kind === 'radialPunch');
   assert.ok(radialShots.length >= 14, 'muscle ultimate releases a dense all-direction rush punch');
@@ -632,9 +632,9 @@ function testModeUltimatesSwordGripAndClashes() {
   const kingBefore = game.state().enemiesAlive;
   game.ultimate();
   assert.equal(game.state().kingClones, 0, 'KING clones wait until after the presentation');
-  game.step(.78);
+  game.step(.46);
   assert.ok(game.state().notice.includes('ひれ伏せ！！俺はKINGだっ！！'), 'KING ultimate uses its requested line');
-  game.step(1.66);
+  game.step(1.22);
   assert.equal(game.state().kingClones, 2, 'KING becomes a three-member team with two autonomous clones');
   game.step(2.2);
   assert.ok(game.state().enemiesAlive < kingBefore, 'KING clones move ahead and defeat enemies independently');
@@ -777,6 +777,8 @@ function testAssetsAndSyntaxSurface() {
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
   assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"/, 'ultimate presentation has a dedicated cut-in surface');
+  assert.match(html, /cutin-slash-a[\s\S]+LIMIT BREAK \/\/ PHOENIX DRIVE[\s\S]+EXECUTE/, 'ultimate cut-in includes the fast slash and limit-break presentation layers');
+  assert.match(html, /title-enemy-left[\s\S]+enemy_phone_bot\.png[\s\S]+title-enemy-right[\s\S]+enemy_battle_drone\.png/, 'title screen uses the restored mech cast as its visual threat');
   assert.match(html, /伏せ S\/↓[\s\S]+攻撃 X\/J[\s\S]+翼 Z\/K[\s\S]+必殺技 C\/V[\s\S]+左右ダッシュ Q\/E/, 'title documents expanded PC technique keys');
   assert.doesNotMatch(html, /data-input="charge"|STAMINA<br>CHARGE/, 'dedicated dash charge button is absent from the mobile UI');
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
@@ -788,9 +790,12 @@ function testAssetsAndSyntaxSurface() {
   assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'optimized theme-specific background renderer is active');
   assert.doesNotMatch(gameSource, /fillText\(['"]ARMOR['"]/, 'enemy art is restored without the added permanent ARMOR label');
   assert.doesNotMatch(gameSource, /enemy\.hit>0\)ctx\.filter/, 'enemy art is restored without the added hit-color filter');
-  assert.doesNotMatch(gameSource, /ctx\.drawImage\(enemyImage\b/, 'regular enemies use the pre-image classic canvas renderer again');
+  assert.match(gameSource, /enemyImage\?\.repairRequested[\s\S]+ctx\.drawImage\(enemyImage\b/, 'regular enemies render the detailed mech PNG only after proximity loading');
+  assert.match(gameSource, /ULTIMATE_CUTIN_TIME = \.42[\s\S]+ULTIMATE_DIALOGUE_TIME = 1\.18/, 'the cinematic reaches the spoken line and attack substantially faster');
+  assert.match(css, /@keyframes cutinSlash[\s\S]+@keyframes cutinFlash/, 'cut-in uses fast diagonal impact and flash animation');
+  assert.match(css, /titleReactorSpin[\s\S]+titleScan/, 'title screen includes the animated repair reactor and scan layer');
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
-  assert.match(html, /敵デザイン復元 · LIGHT FIX 08\.18-D[\s\S]+game\.js\?v=20260818d/, 'the visible build badge and cache-busted game script identify the restored build');
+  assert.match(html, /MECHA ENEMIES RESTORED · BUILD 08\.18-E[\s\S]+game\.js\?v=20260818e/, 'the visible build badge and cache-busted game script identify the mech restoration build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -798,19 +803,25 @@ function testAssetsAndSyntaxSurface() {
   }
 }
 
-function testLazyAssetLoadingAndClassicEnemies() {
+function testLazyAssetLoadingAndMechaEnemies() {
   const game=createGame({width:390,height:844,touch:true});
   let state=game.state();
-  assert.equal(state.render.enemyArt,'classicCanvas','the original lightweight enemy renderer is active');
+  assert.equal(state.render.enemyArt,'mechaPngLazy','the detailed dark-SF mech renderer is active');
   assert.equal(state.render.assetRequests.player.normal,true,'normal Feni is requested at startup');
   assert.equal(state.render.assetRequests.state.normal,true,'normal expression sheet is requested at startup');
   assert.equal(state.render.assetRequests.motion.normal,true,'normal motion sheet is requested at startup');
   assert.equal(state.render.assetRequests.player.lcd,false,'inactive transformation base art is deferred');
   assert.equal(state.render.assetRequests.state.lcd,false,'inactive transformation expression art is deferred');
   assert.equal(state.render.assetRequests.motion.lcd,false,'inactive transformation motion art is deferred');
-  assert.ok(Object.values(state.render.assetRequests.enemies).every((requested)=>!requested),'regular enemy textures are not loaded for classic rendering');
+  assert.ok(Object.values(state.render.assetRequests.enemies).every((requested)=>!requested),'gameplay enemy textures stay deferred on the title screen');
   assert.equal(state.render.assetRequests.boss,false,'boss art is deferred outside its arena');
   assert.equal(state.render.assetRequests.sword,false,'sword art is deferred outside its arena');
+
+  game.start();game.step(.05);state=game.state();
+  assert.equal(state.render.assetRequests.enemies.phoneBot,true,'the nearby smartphone battle robot art is prefetched before entering view');
+  assert.equal(state.render.assetRequests.enemies.toolMech,true,'the nearby tool mech art is prefetched before entering view');
+  assert.equal(state.images.enemies.phoneBot.loaded,true,'the requested smartphone battle robot texture becomes drawable');
+  assert.ok(Object.values(state.render.assetRequests.enemies).some((requested)=>!requested),'distant enemy types remain deferred instead of all decoding at once');
 
   game.setMode('lcd');state=game.state();
   assert.equal(state.render.assetRequests.player.lcd,true,'LCD base art loads when its mode is needed');
@@ -825,7 +836,7 @@ function testLazyAssetLoadingAndClassicEnemies() {
   const sharkGame=createGame();sharkGame.setStage('2-5');state=sharkGame.state();
   sharkGame.teleport(state.boss.gateX-900,300);sharkGame.step(.05);state=sharkGame.state();
   assert.equal(state.render.assetRequests.enemies.mechaShark,true,'shark boss art is prefetched near its arena');
-  assert.ok(Object.entries(state.render.assetRequests.enemies).filter(([name])=>name!=='mechaShark').every(([,requested])=>!requested),'unused regular enemy textures stay deferred');
+  assert.ok(Object.entries(state.render.assetRequests.enemies).filter(([name])=>name!=='mechaShark').some(([,requested])=>!requested),'enemy types outside the nearby shark arena stay deferred');
 }
 
 function testViewportMatrix() {
@@ -916,6 +927,6 @@ testRushPunch();
 testBossGateAndChaseWall();
 testViewportMatrix();
 testAssetsAndSyntaxSurface();
-testLazyAssetLoadingAndClassicEnemies();
+testLazyAssetLoadingAndMechaEnemies();
 testSoundRuntime();
 console.log('Repair Hero smoke tests passed');

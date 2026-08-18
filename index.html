@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260818d">
+  <link rel="stylesheet" href="style.css?v=20260818e">
 </head>
 <body>
   <main id="app">
@@ -25,12 +25,19 @@
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGES 1-1 — 2-5 · 敵デザイン復元 · LIGHT FIX 08.18-D</div>
-      <h1><span>REPAIR</span><strong>HERO</strong></h1>
-      <p>スマホ修理商店街を救え！</p>
-      <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
-      <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E ／ 地下・海・空・迫る壁を突破せよ！</p>
+      <div class="title-scan" aria-hidden="true"></div>
+      <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
+      <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
+      <div class="title-core">
+        <div class="title-badge">MECHA ENEMIES RESTORED · BUILD 08.18-E</div>
+        <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
+        <h1><span>REPAIR</span><strong>HERO</strong></h1>
+        <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
+        <div class="title-status" aria-label="ゲーム内容"><span>9 STAGES</span><span>5 FORMS</span><span>BOSS BATTLE</span></div>
+        <button id="start"><i>IGNITION</i> ゲームスタート <small>SPACE / ENTER</small></button>
+        <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E</p>
+      </div>
+      <div class="title-feni"><i aria-hidden="true"></i><img src="./feni.png" alt="主人公 フェニちゃん" decoding="async"><span><b>FENI-CHAN</b> REPAIR HERO</span></div>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -50,11 +57,14 @@
       <span id="noticeText"></span>
     </div>
     <div id="ultimateCutin" class="ultimate-cutin hidden" aria-live="assertive" aria-label="必殺技カットイン">
+      <i class="cutin-slash cutin-slash-a" aria-hidden="true"></i>
+      <i class="cutin-slash cutin-slash-b" aria-hidden="true"></i>
       <div class="ultimate-cutin-panel">
-        <span>ULTIMATE CUT-IN</span>
+        <span>LIMIT BREAK // PHOENIX DRIVE</span>
         <canvas id="ultimateCutinPortrait" width="384" height="384" aria-hidden="true"></canvas>
-        <div><small id="ultimateCutinMode">NORMAL MODE</small><strong id="ultimateCutinName">FIRE FEATHER STORM</strong></div>
+        <div class="ultimate-cutin-copy"><small id="ultimateCutinMode">NORMAL MODE</small><strong id="ultimateCutinName">FIRE FEATHER STORM</strong><em>EXECUTE</em></div>
       </div>
+      <b class="cutin-impact" aria-hidden="true">ULTIMATE</b>
     </div>
     <div id="transformFlash" class="transform-flash" aria-hidden="true"></div>
     <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
@@ -76,7 +86,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260818d"></script>
-  <script src="game.js?v=20260818d"></script>
+  <script src="sound.js?v=20260818e"></script>
+  <script src="game.js?v=20260818e"></script>
 </body>
 </html>
