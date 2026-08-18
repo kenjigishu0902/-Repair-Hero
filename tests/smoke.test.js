@@ -43,12 +43,12 @@ class Element {
 function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
-    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'transformFlash', 'bossHud',
-    'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
+    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
+    'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
-  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'wing', 'attack', 'jump'].map((name) => {
+  const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'wing', 'special', 'attack', 'jump'].map((name) => {
     const button = new Element();
     button.dataset.input = name;
     return button;
@@ -113,14 +113,14 @@ function testModes() {
   game.setStage('1-1');
   game.setMode('lcd');
   assert.equal(game.state().player.modeTimer, 25);
+  assert.equal(game.state().player.shields, 5, 'LCD mode starts with the upgraded five-layer barrier');
+  for (let layer = 4; layer >= 0; layer -= 1) {
+    game.hit();
+    assert.equal(game.state().player.shields, layer, `LCD barrier absorbs hit ${5-layer}`);
+    assert.equal(game.state().player.hp, 3);
+  }
   game.hit();
-  assert.equal(game.state().player.shields, 1);
-  assert.equal(game.state().player.hp, 3);
-  game.hit();
-  assert.equal(game.state().player.shields, 0);
-  assert.equal(game.state().player.hp, 3);
-  game.hit();
-  assert.equal(game.state().player.hp, 2, 'third LCD hit damages HP');
+  assert.equal(game.state().player.hp, 2, 'sixth LCD hit damages HP after five barriers');
 
   game.setStage('1-1');
   game.setMode('king');
@@ -486,6 +486,69 @@ function testBossIntroAIPhasesAndCamera() {
   assert.equal(game.state().boss.phase, 3, 'boss unlocks its final phase below 30% HP');
 }
 
+function testModeUltimatesSwordGripAndClashes() {
+  const game = createGame();
+
+  game.setStage('1-1');
+  const normalTarget = game.state().enemyPositions.find((enemy) => !enemy.allied);
+  game.teleport(Math.max(0, normalTarget.x - 520), normalTarget.y + normalTarget.h - 112);
+  const normalBefore = game.state().enemiesAlive;
+  assert.equal(game.ultimate(), true, 'normal ultimate can be activated');
+  assert.ok(game.state().notice.includes('おいどんを甘く見るなよ！！'), 'normal ultimate uses its requested line');
+  game.step(.35);
+  assert.ok(game.state().wingProjectiles.filter((shot) => shot.kind === 'fireFeather').length >= 5, 'normal ultimate launches a barrage of fire feathers');
+  game.step(1.1);
+  assert.ok(game.state().enemiesAlive < normalBefore, 'fire feathers seek and defeat enemies');
+  assert.equal(game.ultimate(), false, 'normal ultimate respects its cooldown');
+
+  game.setStage('1-1');
+  game.setMode('battery');
+  game.hit();
+  const damagedHp = game.state().player.hp;
+  game.step(.65);
+  assert.ok(game.state().player.hp > damagedHp, 'battery mode continuously regenerates without a post-hit delay');
+  assert.equal(game.ultimate(), true, 'battery ultimate activates');
+  assert.equal(game.state().alliesAlive, 1, 'battery ultimate converts exactly one enemy into an ally');
+  assert.ok(game.state().notice.includes('元気1000倍！！負ける気がしねぇ！！'), 'battery ultimate uses its requested line');
+  game.step(.4);
+  assert.ok(game.state().wingProjectiles.some((shot) => shot.kind === 'allyPulse'), 'the allied enemy attacks other enemies');
+
+  game.setStage('1-1');
+  game.setMode('lcd');
+  const lcdBefore = game.state().enemiesAlive;
+  assert.equal(game.state().player.shields, 5, 'LCD barrier is upgraded to five layers');
+  game.ultimate();
+  assert.ok(game.state().notice.includes('俯瞰した俺をもう誰も止められない…'), 'LCD ultimate uses its requested line');
+  game.step(.82);
+  assert.ok(game.state().enemiesAlive <= lcdBefore - 4, 'LCD ultimate chains instant-movement defeats');
+
+  game.setStage('1-1');
+  game.setMode('muscle');
+  game.ultimate();
+  assert.ok(game.state().notice.includes('ウホォ/ / /止まんなァい゛い゛！！゛'), 'muscle ultimate uses its requested line');
+  game.step(.58);
+  const radialShots = game.state().wingProjectiles.filter((shot) => shot.kind === 'radialPunch');
+  assert.ok(radialShots.length >= 14, 'muscle ultimate releases a dense all-direction rush punch');
+  assert.ok(radialShots.some((shot) => Math.abs(shot.vy) > 300), 'all-direction rush includes strong vertical punches');
+
+  game.setStage('1-1');
+  game.setMode('king');
+  const kingBefore = game.state().enemiesAlive;
+  game.ultimate();
+  assert.equal(game.state().kingClones, 2, 'KING becomes a three-member team with two autonomous clones');
+  assert.ok(game.state().notice.includes('ひれ伏せ！！俺はKINGだっ！！'), 'KING ultimate uses its requested line');
+  game.step(2.2);
+  assert.ok(game.state().enemiesAlive < kingBefore, 'KING clones move ahead and defeat enemies independently');
+
+  game.setStage('1-1');
+  game.giveSword();
+  game.attack();
+  game.spawnCounterProjectile('rail');
+  game.step(.04);
+  assert.equal(game.state().enemyProjectileData.length, 0, 'a sword swing cancels an incoming enemy projectile');
+  assert.equal(game.state().player.swordPose, 'swing', 'the exact Phoenix Sword overlay follows the active swing phase');
+}
+
 function testModeSwordAndGoalExpressions() {
   const game = createGame();
   for (const transform of ['battery', 'lcd', 'king', 'muscle']) {
@@ -611,10 +674,15 @@ function testAssetsAndSyntaxSurface() {
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
+  assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
   assert.doesNotMatch(html, /data-input="charge"|STAMINA<br>CHARGE/, 'dedicated dash charge button is absent from the mobile UI');
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
+  const gameSource = fs.readFileSync(path.join(root, 'game.js'), 'utf8');
   assert.doesNotMatch(css, /charge-control/, 'removed charge control leaves no stale responsive CSS');
-  assert.match(css, /grid-template-areas:"wing jump" "attack jump"/, 'portrait action layout closes the removed charge-button row');
+  assert.match(css, /grid-template-areas:"special wing jump" "attack attack jump"/, 'portrait action layout fits ultimate, wing, attack, and jump controls');
+  assert.match(gameSource, /drawImage\(phoenixSwordImage,[^\n]+swordSize,swordSize\)/, 'the canonical Phoenix Sword is rendered without aspect-ratio distortion');
+  assert.doesNotMatch(gameSource, /ctx\.drawImage\(swordPoseImage/, 'old baked sword-pose art is not drawn over transformed characters');
+  assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'cinematic theme-specific background renderer is active');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
@@ -670,6 +738,13 @@ function testSoundRuntime() {
   context.RepairHeroSound.play('speedUp');
   context.RepairHeroSound.play('speedMax');
   context.RepairHeroSound.play('wingFire');
+  context.RepairHeroSound.play('ultimateCharge');
+  context.RepairHeroSound.play('featherVolley');
+  context.RepairHeroSound.play('allyJoin');
+  context.RepairHeroSound.play('teleportStrike');
+  context.RepairHeroSound.play('omniRush');
+  context.RepairHeroSound.play('kingClones');
+  context.RepairHeroSound.play('clash');
   context.RepairHeroSound.music('boss2');
   context.RepairHeroSound.transition('goal');
   assert.equal(context.RepairHeroSound.state().currentName, 'goal', 'goal transition replaces the previous BGM instead of layering it');
@@ -683,6 +758,7 @@ testTraversalAndStompUpgrades();
 testStaminaCoinsAndEnemyArsenal();
 testProjectileLifecycleIdleJumpAndWing();
 testBossIntroAIPhasesAndCamera();
+testModeUltimatesSwordGripAndClashes();
 testModeSwordAndGoalExpressions();
 testModes();
 testRushPunch();

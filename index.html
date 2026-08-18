@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260817a">
+  <link rel="stylesheet" href="style.css?v=20260818a">
 </head>
 <body>
   <main id="app">
@@ -19,18 +19,18 @@
       <div><span>SCORE</span><b id="score">000000</b></div>
       <div><span>TIME</span><b id="timer">120</b></div>
       <div class="dash-meter"><span>DASH STAMINA</span><meter id="dashGauge" min="0" max="100" value="100">100%</meter></div>
-      <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×2</em></div>
+      <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×5</em><em id="specialStatus" class="special-status">ULTIMATE READY</em></div>
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
-      <div class="title-badge">STAGES 1-1 — 2-5 · UPDATE 08.17</div>
+      <div class="title-badge">STAGES 1-1 — 2-5 · UPDATE 08.18</div>
       <h1><span>REPAIR</span><strong>HERO</strong></h1>
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
       <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">移動 A/D・ジャンプ SPACE・翼 Z・攻撃 X ／ 地下・海・空・迫る壁を突破せよ！</p>
+      <p class="help">移動 A/D・ジャンプ SPACE・翼 Z・攻撃 X・必殺技 C ／ 地下・海・空・迫る壁を突破せよ！</p>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -62,13 +62,14 @@
         <button data-input="down" class="drop-control direction-down" aria-label="足場を降りる・下へ移動">↓<small>DROP<br>DIVE</small></button>
       </div>
       <div class="action-pad">
+        <button id="specialAttack" data-input="special" class="special-control" aria-label="必殺技">🔥<small>FIRE<br>STORM</small></button>
         <button id="wingAttack" data-input="wing" class="wing-control" aria-label="翼を飛ばす攻撃">🪽<small>PHOENIX<br>WING</small></button>
         <button id="attack" data-input="attack" class="attack hidden">⚔<br>ATTACK</button>
         <button data-input="jump" class="jump">JUMP</button>
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260817a"></script>
-  <script src="game.js?v=20260817a"></script>
+  <script src="sound.js?v=20260818a"></script>
+  <script src="game.js?v=20260818a"></script>
 </body>
 </html>
