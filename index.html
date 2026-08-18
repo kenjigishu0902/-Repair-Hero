@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260818a">
+  <link rel="stylesheet" href="style.css?v=20260818b">
 </head>
 <body>
   <main id="app">
@@ -30,7 +30,7 @@
       <p>スマホ修理商店街を救え！</p>
       <div class="title-feni"><img src="./feni.png" alt="主人公 フェニちゃん"><span>フェニちゃん</span></div>
       <button id="start">ゲームスタート <small>SPACE / ENTER</small></button>
-      <p class="help">移動 A/D・ジャンプ SPACE・翼 Z・攻撃 X・必殺技 C ／ 地下・海・空・迫る壁を突破せよ！</p>
+      <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E ／ 地下・海・空・迫る壁を突破せよ！</p>
     </section>
 
     <section id="result" class="screen result hidden">
@@ -49,6 +49,13 @@
       <canvas id="noticePortrait" class="notice-portrait" width="256" height="256" aria-hidden="true"></canvas>
       <span id="noticeText"></span>
     </div>
+    <div id="ultimateCutin" class="ultimate-cutin hidden" aria-live="assertive" aria-label="必殺技カットイン">
+      <div class="ultimate-cutin-panel">
+        <span>ULTIMATE CUT-IN</span>
+        <canvas id="ultimateCutinPortrait" width="384" height="384" aria-hidden="true"></canvas>
+        <div><small id="ultimateCutinMode">NORMAL MODE</small><strong id="ultimateCutinName">FIRE FEATHER STORM</strong></div>
+      </div>
+    </div>
     <div id="transformFlash" class="transform-flash" aria-hidden="true"></div>
     <button id="pause" class="pause hidden" aria-label="一時停止">Ⅱ</button>
 
@@ -59,7 +66,7 @@
         <button data-input="left" aria-label="左へ移動">←</button>
         <button data-input="right" aria-label="右へ移動">→</button>
         <button data-input="up" class="vertical-only direction-up" aria-label="上へ移動">↑</button>
-        <button data-input="down" class="drop-control direction-down" aria-label="足場を降りる・下へ移動">↓<small>DROP<br>DIVE</small></button>
+        <button data-input="down" class="drop-control direction-down" aria-label="伏せる・足場を降りる・下へ潜る">↓<small>CROUCH<br>DROP/DIVE</small></button>
       </div>
       <div class="action-pad">
         <button id="specialAttack" data-input="special" class="special-control" aria-label="必殺技">🔥<small>FIRE<br>STORM</small></button>
@@ -69,7 +76,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260818a"></script>
-  <script src="game.js?v=20260818a"></script>
+  <script src="sound.js?v=20260818b"></script>
+  <script src="game.js?v=20260818b"></script>
 </body>
 </html>

@@ -35,7 +35,8 @@
     attack:[980,190,.2],enemyAttack:[240,860,.19],enemyCharge:[180,520,.28],drop:[310,150,.1],charge:[180,560,.16],revive:[260,1320,.55],
     speedUp:[520,1320,.32],speedMax:[660,1760,.46],wingCharge:[260,780,.24],wingFire:[420,1560,.3],wingHit:[190,980,.22],bossWarning:[95,420,.52],bossMelee:[120,640,.26],
     ultimateCharge:[120,1180,.48],featherShot:[520,1380,.16],featherVolley:[240,1720,.3],allyJoin:[240,1040,.42],allyShot:[460,980,.13],
-    teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16]
+    teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16],
+    ultimateVoice:[330,990,.28],armorHit:[135,460,.16],boostRail:[180,1240,.32],laserWarn:[920,180,.34],phaseGate:[260,1480,.38],bubbleJet:[420,980,.22]
   };
 
   function unlock() {
@@ -137,7 +138,7 @@
     oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
-    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
+    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
     gain.gain.setValueAtTime(volume, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
     oscillator.connect(gain).connect(context.destination);
@@ -171,6 +172,12 @@
       [75,110,220,440,880].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.045,index<3?'sawtooth':'square'),index*32));
     } else if (name === 'kingClones') {
       [523,784,1047,1568].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.28,.04,'triangle'),index*62));
+    } else if (name === 'ultimateVoice') {
+      [330,494,659,988].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.16,.031,'triangle'),index*48));
+    } else if (name === 'boostRail') {
+      [220,440,880,1320].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.14,.036,index<2?'sawtooth':'triangle'),index*38));
+    } else if (name === 'phaseGate') {
+      [330,660,990,1480].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.032,'sine'),index*46));
     }
   }
 

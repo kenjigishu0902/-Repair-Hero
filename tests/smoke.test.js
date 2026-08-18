@@ -43,7 +43,8 @@ class Element {
 function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
-    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
+    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'ultimateCutin', 'ultimateCutinPortrait', 'ultimateCutinMode', 'ultimateCutinName',
+    'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
     'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
   ];
@@ -231,9 +232,11 @@ function testCoreControls() {
   game.setStage('1-5');
   game.giveSword();
   assert.equal(game.state().player.swordPose, 'ready', 'sword holder uses the ready pose');
+  assert.equal(game.state().player.renderExpression, 'swordReady', 'sword holder uses the per-mode two-handed ready artwork');
   game.attack();
   assert.ok(game.state().player.attackTime > 0, 'sword ATTACK activates');
   assert.equal(game.state().player.swordPose, 'swing', 'sword ATTACK starts with the flaming swing pose');
+  assert.equal(game.state().player.renderExpression, 'swordSwing', 'sword attack uses the per-mode flaming swing artwork');
   assert.ok(game.state().shockwaveKinds.includes('slash'), 'sword ATTACK launches a flame slash wave');
   assert.ok(game.state().shockwaveData.some((wave) => wave.kind === 'slash' && wave.maxDistance >= 360), 'slash wave travels well beyond the sword hitbox');
   game.step(.18);
@@ -321,6 +324,68 @@ function testTraversalAndStompUpgrades() {
   game.setStage('1-6');
   const surfaceDecks = game.state().oneWayPlatforms.filter((platform) => platform.surfaceRoute);
   assert.ok(surfaceDecks.length >= 4, 'underground maze has a traversable surface route connected to the deep route');
+}
+
+function testCrouchDurabilityFallGuardAndGimmicks() {
+  const game = createGame();
+  for (const transform of ['normal', 'battery', 'lcd', 'king', 'muscle']) {
+    game.setStage('1-1');
+    if (transform !== 'normal') game.setMode(transform);
+    game.setInput('down', true);
+    game.step(.08);
+    assert.equal(game.state().player.crouching, true, `${transform}: down input crouches on solid ground`);
+    assert.equal(game.state().player.state, 'crouch', `${transform}: crouch owns the animation state`);
+    assert.equal(game.state().player.motionFrame, 'land', `${transform}: crouch reuses its matching mode art`);
+    assert.ok(game.state().player.damageBox.h < 70, `${transform}: crouch lowers the vulnerable body`);
+    assert.ok(game.state().player.damageBox.y > game.state().player.y + 45, `${transform}: crouch can duck a readable projectile`);
+    game.setInput('down', false);
+    game.step(.04);
+  }
+
+  game.setStage('1-1');
+  const durability = game.state().enemyPositions;
+  const lightIndex = durability.findIndex((enemy) => enemy.maxHp === 1);
+  const armoredIndex = durability.findIndex((enemy) => enemy.maxHp === 2);
+  assert.ok(lightIndex >= 0 && armoredIndex >= 0, 'stage mixes one-hit and two-hit enemy classes');
+  const enemiesBeforeLight = game.state().enemiesAlive;
+  game.hitEnemy(lightIndex, 1);
+  assert.equal(game.state().enemiesAlive, enemiesBeforeLight - 1, 'one-hit enemy falls to one normal hit');
+
+  game.setStage('1-1');
+  const freshArmored = game.state().enemyPositions;
+  const freshArmoredIndex = freshArmored.findIndex((enemy) => enemy.maxHp === 2);
+  const armoredBefore = game.state().enemiesAlive;
+  game.hitEnemy(freshArmoredIndex, 1);
+  let survivingArmored = game.state().enemyPositions[freshArmoredIndex];
+  assert.equal(game.state().enemiesAlive, armoredBefore, 'armored enemy survives its first normal hit');
+  assert.equal(survivingArmored.hp, 1, 'armored enemy visibly has one armor segment left');
+  game.hitEnemy(freshArmoredIndex, 1);
+  assert.equal(game.state().enemiesAlive, armoredBefore - 1, 'armored enemy falls on the second normal hit');
+
+  game.setStage('1-1');
+  game.forceVoid();
+  let recovered = game.state();
+  assert.equal(recovered.player.voidRecoveries, 1, 'fall guard records a void recovery');
+  assert.ok(recovered.player.y >= 0 && recovered.player.y < recovered.world.height, 'void recovery immediately returns Feni inside the stage');
+  assert.equal(recovered.player.grounded, true, 'void recovery chooses supported land');
+  game.step(1.2);
+  recovered = game.state();
+  assert.ok(recovered.player.y < recovered.world.height, 'recovered player does not enter an endless fall loop');
+
+  game.setStage('1-1');
+  const landGimmicks = new Set(game.state().gimmicks.map((gimmick) => gimmick.type));
+  assert.ok(landGimmicks.has('boostRail'), 'land stages add a controllable speed-rail gimmick');
+  assert.ok(landGimmicks.has('scanLaser'), 'land stages add a telegraphed crouch/jump laser gimmick');
+  game.setStage('1-7');
+  assert.equal(game.state().gimmicks.filter((gimmick) => gimmick.type === 'bubbleJet').length, 2, 'water stage adds two oxygen bubble-current gimmicks');
+
+  game.setStage('1-1');
+  game.setInput('right', true);
+  game.step(.26);
+  const walking = game.state().player;
+  game.setInput('right', false);
+  assert.equal(walking.state, 'walk', 'normal movement enters the walk state');
+  assert.ok(walking.walkBlend && walking.walkBlend.blend > 0 && walking.walkBlend.blend < 1, 'walk frames cross-fade instead of snapping between poses');
 }
 
 function testStaminaCoinsAndEnemyArsenal() {
@@ -494,7 +559,16 @@ function testModeUltimatesSwordGripAndClashes() {
   game.teleport(Math.max(0, normalTarget.x - 520), normalTarget.y + normalTarget.h - 112);
   const normalBefore = game.state().enemiesAlive;
   assert.equal(game.ultimate(), true, 'normal ultimate can be activated');
+  assert.equal(game.state().player.ultimatePhase, 'cutin', 'normal ultimate starts with the cut-in');
+  assert.equal(game.state().cutinVisible, true, 'cut-in overlay is visible before dialogue');
+  assert.equal(game.state().wingProjectiles.length, 0, 'attack does not fire before the cut-in and dialogue');
+  game.step(.78);
+  assert.equal(game.state().player.ultimatePhase, 'dialogue', 'cut-in advances to dialogue');
+  assert.equal(game.state().cutinVisible, false, 'cut-in closes before the speech bubble');
   assert.ok(game.state().notice.includes('おいどんを甘く見るなよ！！'), 'normal ultimate uses its requested line');
+  assert.equal(game.state().wingProjectiles.length, 0, 'attack still waits until dialogue completes');
+  game.step(1.66);
+  assert.equal(game.state().player.ultimatePhase, null, 'dialogue advances to the actual attack');
   game.step(.35);
   assert.ok(game.state().wingProjectiles.filter((shot) => shot.kind === 'fireFeather').length >= 5, 'normal ultimate launches a barrage of fire feathers');
   game.step(1.1);
@@ -508,8 +582,11 @@ function testModeUltimatesSwordGripAndClashes() {
   game.step(.65);
   assert.ok(game.state().player.hp > damagedHp, 'battery mode continuously regenerates without a post-hit delay');
   assert.equal(game.ultimate(), true, 'battery ultimate activates');
-  assert.equal(game.state().alliesAlive, 1, 'battery ultimate converts exactly one enemy into an ally');
+  assert.equal(game.state().alliesAlive, 0, 'battery ally waits for the presentation sequence');
+  game.step(.78);
   assert.ok(game.state().notice.includes('元気1000倍！！負ける気がしねぇ！！'), 'battery ultimate uses its requested line');
+  game.step(1.66);
+  assert.equal(game.state().alliesAlive, 1, 'battery ultimate converts exactly one enemy into an ally after dialogue');
   game.step(.4);
   assert.ok(game.state().wingProjectiles.some((shot) => shot.kind === 'allyPulse'), 'the allied enemy attacks other enemies');
 
@@ -518,14 +595,33 @@ function testModeUltimatesSwordGripAndClashes() {
   const lcdBefore = game.state().enemiesAlive;
   assert.equal(game.state().player.shields, 5, 'LCD barrier is upgraded to five layers');
   game.ultimate();
+  assert.equal(game.state().player.ultimatePhase, 'cutin', 'LCD blink starts with its cut-in');
+  game.step(.78);
   assert.ok(game.state().notice.includes('俯瞰した俺をもう誰も止められない…'), 'LCD ultimate uses its requested line');
+  assert.equal(game.state().enemiesAlive, lcdBefore, 'LCD does not teleport before its dialogue');
+  game.step(1.66);
   game.step(.82);
   assert.ok(game.state().enemiesAlive <= lcdBefore - 4, 'LCD ultimate chains instant-movement defeats');
+  assert.ok(game.state().player.y >= 0 && game.state().player.y < game.state().world.height, 'LCD chain teleport always lands inside the stage');
+  assert.equal(game.state().player.grounded, true, 'LCD chain teleport resolves to supported land');
+
+  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5']) {
+    game.setStage(id);
+    game.setMode('lcd');
+    game.ultimate();
+    game.step(3.45);
+    const blinkResult = game.state();
+    assert.ok(blinkResult.player.y >= 0 && blinkResult.player.y < blinkResult.world.height, `${id}: repeated LCD targets never place Feni below the world`);
+    assert.equal(blinkResult.player.voidRecoveries, 0, `${id}: LCD ultimate does not need the emergency fall guard`);
+    if (!['1-7', '2-5'].includes(id)) assert.equal(blinkResult.player.grounded, true, `${id}: LCD ultimate ends on supported terrain`);
+  }
 
   game.setStage('1-1');
   game.setMode('muscle');
   game.ultimate();
+  game.step(.78);
   assert.ok(game.state().notice.includes('ウホォ/ / /止まんなァい゛い゛！！゛'), 'muscle ultimate uses its requested line');
+  game.step(1.66);
   game.step(.58);
   const radialShots = game.state().wingProjectiles.filter((shot) => shot.kind === 'radialPunch');
   assert.ok(radialShots.length >= 14, 'muscle ultimate releases a dense all-direction rush punch');
@@ -535,8 +631,11 @@ function testModeUltimatesSwordGripAndClashes() {
   game.setMode('king');
   const kingBefore = game.state().enemiesAlive;
   game.ultimate();
-  assert.equal(game.state().kingClones, 2, 'KING becomes a three-member team with two autonomous clones');
+  assert.equal(game.state().kingClones, 0, 'KING clones wait until after the presentation');
+  game.step(.78);
   assert.ok(game.state().notice.includes('ひれ伏せ！！俺はKINGだっ！！'), 'KING ultimate uses its requested line');
+  game.step(1.66);
+  assert.equal(game.state().kingClones, 2, 'KING becomes a three-member team with two autonomous clones');
   game.step(2.2);
   assert.ok(game.state().enemiesAlive < kingBefore, 'KING clones move ahead and defeat enemies independently');
 
@@ -556,8 +655,10 @@ function testModeSwordAndGoalExpressions() {
     game.setMode(transform);
     game.giveSword();
     assert.equal(game.state().player.swordPose, 'ready', `${transform}: keeps its own sword-ready state`);
+    assert.equal(game.state().player.renderExpression, 'swordReady', `${transform}: uses its matching mode sword-ready image`);
     game.attack();
     assert.equal(game.state().player.swordPose, 'swing', `${transform}: can swing the sword`);
+    assert.equal(game.state().player.renderExpression, 'swordSwing', `${transform}: uses its matching mode sword-swing image`);
     assert.ok(game.state().shockwaveKinds.includes('slash'), `${transform}: keeps the flame slash wave`);
     if (transform === 'muscle') assert.equal(game.state().rushTrails, 0, 'GORI MACHO uses the sword, not rush punch, while armed');
   }
@@ -675,6 +776,8 @@ function testAssetsAndSyntaxSurface() {
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
+  assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"/, 'ultimate presentation has a dedicated cut-in surface');
+  assert.match(html, /伏せ S\/↓[\s\S]+攻撃 X\/J[\s\S]+翼 Z\/K[\s\S]+必殺技 C\/V[\s\S]+左右ダッシュ Q\/E/, 'title documents expanded PC technique keys');
   assert.doesNotMatch(html, /data-input="charge"|STAMINA<br>CHARGE/, 'dedicated dash charge button is absent from the mobile UI');
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const gameSource = fs.readFileSync(path.join(root, 'game.js'), 'utf8');
@@ -683,6 +786,7 @@ function testAssetsAndSyntaxSurface() {
   assert.match(gameSource, /drawImage\(phoenixSwordImage,[^\n]+swordSize,swordSize\)/, 'the canonical Phoenix Sword is rendered without aspect-ratio distortion');
   assert.doesNotMatch(gameSource, /ctx\.drawImage\(swordPoseImage/, 'old baked sword-pose art is not drawn over transformed characters');
   assert.match(gameSource, /function drawBackground\(\)[\s\S]+ABYSSAL REPAIR ZONE/, 'cinematic theme-specific background renderer is active');
+  assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
     if (!/^https?:/.test(local)) assert.ok(fs.existsSync(path.join(root, local)), `${local} reference exists`);
@@ -745,6 +849,12 @@ function testSoundRuntime() {
   context.RepairHeroSound.play('omniRush');
   context.RepairHeroSound.play('kingClones');
   context.RepairHeroSound.play('clash');
+  context.RepairHeroSound.play('ultimateVoice');
+  context.RepairHeroSound.play('armorHit');
+  context.RepairHeroSound.play('boostRail');
+  context.RepairHeroSound.play('laserWarn');
+  context.RepairHeroSound.play('phaseGate');
+  context.RepairHeroSound.play('bubbleJet');
   context.RepairHeroSound.music('boss2');
   context.RepairHeroSound.transition('goal');
   assert.equal(context.RepairHeroSound.state().currentName, 'goal', 'goal transition replaces the previous BGM instead of layering it');
@@ -755,6 +865,7 @@ function testSoundRuntime() {
 testStagesAndSpawn();
 testCoreControls();
 testTraversalAndStompUpgrades();
+testCrouchDurabilityFallGuardAndGimmicks();
 testStaminaCoinsAndEnemyArsenal();
 testProjectileLifecycleIdleJumpAndWing();
 testBossIntroAIPhasesAndCamera();
