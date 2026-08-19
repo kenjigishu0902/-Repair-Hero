@@ -46,7 +46,7 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
     'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'ultimateCutin', 'ultimateCutinPortrait', 'ultimateCutinMode', 'ultimateCutinName',
     'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
     'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
-    'resultKicker', 'resultTitle', 'resultStats', 'resultFeni'
+    'resultKicker', 'resultTitle', 'resultStats', 'resultFeni', 'controlsTutorial', 'tutorialOpen', 'tutorialClose'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
   const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'wing', 'special', 'attack', 'jump'].map((name) => {
@@ -82,7 +82,7 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
 
 function testStagesAndSpawn() {
   const game = createGame({ width: 390, height: 844, touch: true });
-  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5']) {
+  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5', '2-6']) {
     game.setStage(id);
     const start = game.state();
     assert.equal(start.player.hp, 3, `${id}: starts with full HP`);
@@ -449,10 +449,10 @@ function testProjectileLifecycleIdleJumpAndWing() {
   assert.equal(game.state().enemyProjectileData.length, 0, 'expired or over-range enemy projectiles are removed from memory');
 
   game.setStage('1-1');
-  game.forceIdle('blink');
-  assert.equal(game.state().player.motionFrame, 'blink', 'idle animation has a dedicated blink frame');
-  game.forceIdle('lookAround');
-  assert.ok(['lookLeft', 'lookRight'].includes(game.state().player.motionFrame), 'idle animation can look around');
+  game.forceIdle('yawn');
+  assert.equal(game.state().player.motionFrame, 'yawn', 'idle animation has a dedicated yawn pose without random face swapping');
+  game.forceIdle('stretch');
+  assert.equal(game.state().player.motionFrame, 'doubleJump', 'idle animation can use the all-mode broad stretch pose');
   game.setInput('right', true);
   game.step(.06);
   game.setInput('right', false);
@@ -605,7 +605,7 @@ function testModeUltimatesSwordGripAndClashes() {
   assert.ok(game.state().player.y >= 0 && game.state().player.y < game.state().world.height, 'LCD chain teleport always lands inside the stage');
   assert.equal(game.state().player.grounded, true, 'LCD chain teleport resolves to supported land');
 
-  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5']) {
+  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5', '2-6']) {
     game.setStage(id);
     game.setMode('lcd');
     game.ultimate();
@@ -769,7 +769,7 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png', 'boss_mecha_gorilla.png', 'enemy_mecha_monkey.png']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
@@ -779,7 +779,8 @@ function testAssetsAndSyntaxSurface() {
   assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"/, 'ultimate presentation has a dedicated cut-in surface');
   assert.match(html, /cutin-slash-a[\s\S]+LIMIT BREAK \/\/ PHOENIX DRIVE[\s\S]+EXECUTE/, 'ultimate cut-in includes the fast slash and limit-break presentation layers');
   assert.match(html, /title-enemy-left[\s\S]+enemy_phone_bot\.png[\s\S]+title-enemy-right[\s\S]+enemy_battle_drone\.png/, 'title screen uses the restored mech cast as its visual threat');
-  assert.match(html, /伏せ S\/↓[\s\S]+攻撃 X\/J[\s\S]+翼 Z\/K[\s\S]+必殺技 C\/V[\s\S]+左右ダッシュ Q\/E/, 'title documents expanded PC technique keys');
+  assert.match(html, /id="controlsTutorial"[\s\S]+スマホ[\s\S]+PC[\s\S]+敵弾は剣・翼・パンチで相殺/, 'title includes a visual smartphone and PC tutorial');
+  for(const label of ['左ダッシュ','右ダッシュ','しゃがむ','つばさ攻撃','ひっさつ','ジャンプ'])assert.ok(html.includes(label),`touch controls expose the visual ${label} label`);
   assert.doesNotMatch(html, /data-input="charge"|STAMINA<br>CHARGE/, 'dedicated dash charge button is absent from the mobile UI');
   const css = fs.readFileSync(path.join(root, 'style.css'), 'utf8');
   const gameSource = fs.readFileSync(path.join(root, 'game.js'), 'utf8');
@@ -795,7 +796,7 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /@keyframes cutinSlash[\s\S]+@keyframes cutinFlash/, 'cut-in uses fast diagonal impact and flash animation');
   assert.match(css, /titleReactorSpin[\s\S]+titleScan/, 'title screen includes the animated repair reactor and scan layer');
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
-  assert.match(html, /MECHA ENEMIES RESTORED · BUILD 08\.18-E[\s\S]+game\.js\?v=20260818e/, 'the visible build badge and cache-busted game script identify the mech restoration build');
+  assert.match(html, /JUNGLE RAID UPDATE · BUILD 08\.19-F[\s\S]+game\.js\?v=20260819f/, 'the visible build badge and cache-busted game script identify the jungle raid build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -837,6 +838,55 @@ function testLazyAssetLoadingAndMechaEnemies() {
   sharkGame.teleport(state.boss.gateX-900,300);sharkGame.step(.05);state=sharkGame.state();
   assert.equal(state.render.assetRequests.enemies.mechaShark,true,'shark boss art is prefetched near its arena');
   assert.ok(Object.entries(state.render.assetRequests.enemies).filter(([name])=>name!=='mechaShark').some(([,requested])=>!requested),'enemy types outside the nearby shark arena stay deferred');
+}
+
+function testJungleRaidBossGuardMusicAndSwordTracking(){
+  const expectedMusic={
+    '1-1':'cityRush','1-2':'pitRun','1-3':'underground','1-4':'sky','1-5':'fortress',
+    '1-6':'maze','1-7':'sea','1-8':'factory','2-5':'deepSea','2-6':'jungle'
+  };
+  const game=createGame({width:390,height:844,touch:true});
+  for(const [id,music] of Object.entries(expectedMusic)){game.setStage(id);assert.equal(game.state().stageMusic,music,`${id} selects its own stage score`);}
+
+  game.setStage('2-6');let state=game.state();
+  assert.equal(state.boss.type,'gorilla','jungle stage has the dedicated mecha gorilla boss');
+  assert.equal(state.bossMusic,'bossGorilla','gorilla starts with its dedicated boss score');
+  game.teleport(state.boss.gateX-900,470);game.step(.05);state=game.state();
+  assert.equal(state.render.assetRequests.gorillaBoss,true,'gorilla art is prefetched before the arena');
+  assert.equal(state.render.assetRequests.enemies.mechaMonkey,true,'mecha monkey art is prefetched with its boss');
+  game.teleport(state.boss.gateX+180,470);game.beginBoss();game.step(1.9);state=game.state();
+  assert.equal(state.boss.minionsAlive,3,'boss intro creates exactly three guardian monkeys');
+  assert.equal(state.boss.damageLocked,true,'gorilla is protected while guardian monkeys live');
+  const protectedHp=state.boss.hp;
+  assert.equal(game.hitBoss(5),false,'attacking the protected gorilla is rejected');
+  assert.equal(game.state().boss.hp,protectedHp,'guardian lock prevents all boss HP damage');
+  for(let count=3;count>0;count--){game.hitBossMinion(0);assert.equal(game.state().boss.minionsAlive,count-1,`guardian monkey ${4-count} can be defeated`);}
+  state=game.state();assert.equal(state.boss.damageLocked,false,'defeating all monkeys removes the damage lock');assert.equal(state.boss.guardBroken,true,'gorilla armor break is recorded');
+  assert.equal(game.hitBoss(2),true,'gorilla takes damage after all three monkeys are defeated');
+  assert.ok(game.state().boss.hp<protectedHp,'unlocked boss HP decreases');
+  game.setMode('king');state=game.state();game.teleport(state.boss.arenaLeft+180,350);game.teleportBoss(state.boss.arenaLeft+900,305);
+  const gorillaAttacks=new Set();for(let frame=0;frame<130;frame++){game.step(.1);const attack=game.state().boss.attackName;if(attack)gorillaAttacks.add(attack);}
+  assert.ok(gorillaAttacks.has('apeCharge'),'gorilla performs its own telegraphed charge');
+  assert.ok([...gorillaAttacks].some((attack)=>['armSweep','scrapThrow','groundPound','roarPulse'].includes(attack)),'gorilla rotates into another dedicated attack');
+
+  const clearGame=createGame();clearGame.setStage('2-6');state=clearGame.state();clearGame.teleport(state.boss.gateX+180,470);clearGame.beginBoss();clearGame.step(1.9);
+  assert.equal(clearGame.state().boss.goalUnlocked,false,'jungle goal remains locked at boss start');
+  for(let count=0;count<3;count++)clearGame.hitBossMinion(0);
+  clearGame.defeatBoss();clearGame.step(3);
+  assert.equal(clearGame.state().boss.goalUnlocked,true,'jungle goal unlocks after minions and gorilla are defeated');
+
+  for(const transform of ['normal','battery','lcd','king','muscle']){
+    game.setStage('1-5');if(transform!=='normal')game.setMode(transform);
+    game.forceIdle('yawn');assert.equal(game.state().player.motionFrame,'yawn',`${transform} has the yawn model pose`);
+    game.forceIdle('stretch');assert.equal(game.state().player.motionFrame,'doubleJump',`${transform} has the stretch model pose`);
+  }
+  game.setStage('1-5');game.giveSword();const idleAnchor=game.state().player.swordAnchor;
+  game.setInput('right',true);game.step(.12);game.setInput('right',false);const runState=game.state();
+  assert.ok(['walk','sprint'].includes(runState.player.state),'sword tracking test reaches a running state');
+  assert.notDeepEqual(runState.player.swordAnchor,idleAnchor,'running uses its measured hand anchor instead of the idle anchor');
+  game.setInput('jump',true);game.step(.025);game.setInput('jump',false);const jumpState=game.state();
+  assert.equal(jumpState.player.state,'jump','sword tracking test reaches jump state');
+  assert.ok(jumpState.player.swordAnchor.y<0,'jumping sword grip stays on the raised hand instead of floating below the body');
 }
 
 function testViewportMatrix() {
@@ -884,6 +934,8 @@ function testSoundRuntime() {
   vm.runInContext(fs.readFileSync(path.join(root, 'sound.js'), 'utf8'), context, { filename: 'sound.js' });
   context.RepairHeroSound.music('title');
   context.RepairHeroSound.music('game');
+  for(const track of ['cityRush','pitRun','underground','sky','fortress','maze','sea','factory','deepSea','jungle','bossTitan','bossTitan2','bossShark','bossShark2','bossGorilla','bossGorilla2'])context.RepairHeroSound.music(track);
+  context.RepairHeroSound.play('dash');
   context.RepairHeroSound.play('rushPunch');
   context.RepairHeroSound.play('shieldBreak');
   context.RepairHeroSound.play('attack');
@@ -928,5 +980,6 @@ testBossGateAndChaseWall();
 testViewportMatrix();
 testAssetsAndSyntaxSurface();
 testLazyAssetLoadingAndMechaEnemies();
+testJungleRaidBossGuardMusicAndSwordTracking();
 testSoundRuntime();
 console.log('Repair Hero smoke tests passed');

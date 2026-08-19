@@ -22,7 +22,7 @@
   let musicToken = 0;
 
   const tones = {
-    start: [330, 440, .18], jump: [470, 650, .11], doubleJump: [620, 1040, .2], dash: [180, 480, .08],
+    start: [330, 440, .18], jump: [470, 650, .11], doubleJump: [620, 1040, .2], dash: [920, 175, .14],
     coin: [930, 1250, .08], battery: [420, 720, .18], screen: [700, 1080, .2], toolbox: [210, 620, .22],
     fenicoin: [880, 1500, .3], fire: [340, 980, .3], stomp: [190, 130, .12], damage: [120, 70, .25],
     checkpoint: [620, 880, .25], goal: [520, 980, .32], clear: [760, 1250, .5], gameover: [170, 65, .6],
@@ -35,7 +35,7 @@
     attack:[980,190,.2],enemyAttack:[240,860,.19],enemyCharge:[180,520,.28],drop:[310,150,.1],charge:[180,560,.16],revive:[260,1320,.55],
     speedUp:[520,1320,.32],speedMax:[660,1760,.46],wingCharge:[260,780,.24],wingFire:[420,1560,.3],wingHit:[190,980,.22],bossWarning:[95,420,.52],bossMelee:[120,640,.26],
     ultimateCharge:[120,1180,.48],featherShot:[520,1380,.16],featherVolley:[240,1720,.3],allyJoin:[240,1040,.42],allyShot:[460,980,.13],
-    teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16],
+    teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16],gorillaGuard:[92,46,.3],minionDown:[520,1320,.25],
     ultimateVoice:[330,990,.28],armorHit:[135,460,.16],boostRail:[180,1240,.32],laserWarn:[920,180,.34],phaseGate:[260,1480,.38],bubbleJet:[420,980,.22]
   };
 
@@ -62,22 +62,41 @@
   function startSynthMusic(name) {
     clearInterval(synthTimer);
     if (!name) return;
-    const melodies = {
-      title: [262, 330, 392, 523, 392, 330, 294, 392],
-      game: [220, 330, 392, 440, 523, 659, 587, 440, 392, 294, 330, 494, 587, 659, 784, 659],
-      boss: [110,147,165,123,110,196,165,123], boss2:[147,220,175,247,147,294,220,175],
-      goal: [523,659,784,1047,988,784,659,880,1047,1319,1175,1047]
+    // Stage-specific Web Audio arrangements: distinct tempo, bass and lead,
+    // with a strict three-oscillator ceiling per beat for mobile Safari.
+    const scores = {
+      title:{lead:[262,330,392,523,392,330,294,392],bass:[131,165,196,147],step:240,type:'triangle'},
+      game:{lead:[330,392,440,523,659,587,494,392],bass:[110,147,165,196],step:150,type:'triangle'},
+      cityRush:{lead:[330,392,494,659,587,494,440,392,330,494,659,784,659,587,494,440],bass:[110,165,147,196],step:142,type:'triangle'},
+      pitRun:{lead:[294,370,440,587,440,659,587,494,330,440,554,740,659,554,494,370],bass:[98,147,123,165],step:132,type:'square'},
+      underground:{lead:[196,247,294,370,330,294,247,220,196,294,370,494,440,370,294,247],bass:[65,82,73,98],step:174,type:'triangle'},
+      sky:{lead:[440,554,659,880,784,659,587,554,494,659,784,988,880,784,659,587],bass:[147,185,220,196],step:158,type:'sine'},
+      fortress:{lead:[220,262,330,392,349,330,294,262,220,330,440,523,494,440,392,330],bass:[73,110,98,82],step:146,type:'sawtooth'},
+      maze:{lead:[220,277,330,415,370,330,277,247,220,330,415,554,494,415,370,277],bass:[73,92,82,110],step:166,type:'triangle'},
+      sea:{lead:[294,370,440,587,554,440,370,330,294,440,587,740,659,587,494,370],bass:[98,123,147,110],step:184,type:'sine'},
+      factory:{lead:[247,330,370,494,440,370,330,294,247,370,494,659,587,494,440,330],bass:[82,123,110,98],step:128,type:'square'},
+      deepSea:{lead:[196,247,330,392,370,330,294,247,220,294,392,494,440,392,330,277],bass:[65,82,98,73],step:170,type:'sine'},
+      jungle:{lead:[294,392,440,587,659,587,494,440,330,440,523,698,784,698,587,523],bass:[73,110,98,131],step:136,type:'triangle'},
+      boss:{lead:[110,147,165,123,110,196,165,123],bass:[55,73,65,62],step:150,type:'sawtooth'},
+      boss2:{lead:[147,220,175,247,147,294,220,175],bass:[73,98,82,110],step:120,type:'sawtooth'},
+      bossTitan:{lead:[110,165,147,220,123,196,165,247],bass:[55,82,62,73],step:148,type:'sawtooth'},
+      bossTitan2:{lead:[147,220,294,247,330,294,247,220],bass:[73,110,82,123],step:116,type:'sawtooth'},
+      bossShark:{lead:[98,147,196,175,147,220,196,131],bass:[49,65,55,73],step:164,type:'sine'},
+      bossShark2:{lead:[131,196,262,220,294,262,220,175],bass:[55,82,65,98],step:128,type:'triangle'},
+      bossGorilla:{lead:[82,123,165,147,196,165,147,110],bass:[41,55,49,62],step:154,type:'sawtooth'},
+      bossGorilla2:{lead:[110,165,220,196,262,247,220,165],bass:[55,73,65,82],step:118,type:'sawtooth'},
+      goal:{lead:[523,659,784,1047,988,784,659,880,1047,1319,1175,1047],bass:[262,330,392,440],step:190,type:'triangle'}
     };
+    const score=scores[name]||scores.game;
     synthStep = 0;
     synthTimer = window.setInterval(() => {
       if (currentName !== name) return;
-      const melody = melodies[name];
-      note(melody[synthStep % melody.length], name==='goal' ? 0.24 : 0.16, name==='game' ? 0.028 : name==='goal' ? 0.034 : 0.018, 'triangle');
-      if (synthStep % 2 === 0) note(name === 'game' ? [110,147,165,196][Math.floor(synthStep/2)%4] : name==='goal' ? [262,330,392,440][Math.floor(synthStep/2)%4] : 131, .2, name==='game' ? 0.022 : name==='goal' ? 0.018 : 0.012, 'sine');
-      if(name==='game'&&synthStep%4===3)note(melody[(synthStep+4)%melody.length]*.5,.22,.013,'sawtooth');
-      if(name==='goal'&&synthStep%3===2)note(melody[(synthStep+2)%melody.length]*2,.13,.012,'square');
+      const lead=score.lead[synthStep%score.lead.length],bossTrack=name.startsWith('boss');
+      note(lead,name==='goal'?.24:.145,name==='goal'?.034:bossTrack?.026:.029,score.type);
+      if(synthStep%2===0)note(score.bass[Math.floor(synthStep/2)%score.bass.length],.2,bossTrack?.025:.019,bossTrack?'sawtooth':'sine');
+      if(synthStep%4===3)note(lead*(bossTrack?1.5:2),.08,bossTrack?.011:.009,'square');
       synthStep += 1;
-    }, name === 'boss2' ? 120 : name === 'boss' ? 150 : name === 'game' ? 155 : name === 'goal' ? 190 : 260);
+    }, score.step);
   }
 
   function stopMusicTimers() {
@@ -135,7 +154,7 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
     const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
@@ -144,7 +163,10 @@
     oscillator.connect(gain).connect(context.destination);
     oscillator.start();
     oscillator.stop(context.currentTime + duration);
-    if (name === 'kingMode') {
+    if (name === 'dash') {
+      window.setTimeout(()=>note(105,.13,.04,'sawtooth'),18);
+      window.setTimeout(()=>note(72,.09,.025,'sine'),62);
+    } else if (name === 'kingMode') {
       [523, 659, 784, 1047].forEach((frequency, index) => {
         window.setTimeout(() => note(frequency, .25, .045, 'triangle'), index * 90);
       });
