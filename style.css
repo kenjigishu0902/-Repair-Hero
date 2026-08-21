@@ -72,3 +72,44 @@ body.touch-device.king-mode .move-pad{filter:none}
 .notice.dark-boss-speech{border-color:#d850ff;background:linear-gradient(145deg,#090412f5,#3d074eed);box-shadow:0 0 38px #c32aff;text-shadow:3px 3px #13001d,0 0 16px #ff55e8}
 .bonus-stage .hud{filter:drop-shadow(0 0 10px #f6d34b)}
 .dark-stage .boss-hud{filter:drop-shadow(0 0 14px #b52dff)}
+
+/* Boss limit-break cinematics use generated character art, but keep all copy
+   as live HTML so Japanese dialogue remains crisp on every device. */
+.ultimate-cutin-image{display:block;position:relative;z-index:2;width:min(430px,46vw);height:min(430px,82vh);object-fit:contain;filter:drop-shadow(0 0 25px var(--cutin-primary)) drop-shadow(18px 20px 3px #000a);transform:skew(8deg) scale(1.08);animation:bossCutinPortrait .46s cubic-bezier(.12,.86,.14,1) both}
+.ultimate-cutin-copy q{display:block;margin-top:14px;padding:10px 15px;border-left:5px solid var(--cutin-accent);background:#020611d9;color:#fff7df;font:900 clamp(16px,2.2vw,31px)/1.25 "Noto Sans JP",Arial,sans-serif;letter-spacing:.035em;text-shadow:2px 2px #000,0 0 18px var(--cutin-primary);quotes:none;word-break:keep-all;overflow-wrap:anywhere}
+.ultimate-cutin.boss{z-index:23;background:radial-gradient(circle at 24% 55%,var(--cutin-primary),transparent 38%),linear-gradient(112deg,#01030af8,#090f1df8 51%,#2b0717f8)}
+.ultimate-cutin.boss .ultimate-cutin-panel{width:100vw;height:100dvh;max-width:none;max-height:none;gap:clamp(10px,4vw,70px);clip-path:polygon(0 0,100% 0,100% 91%,82% 100%,0 100%);border-block-width:9px;background:linear-gradient(100deg,#02050cf5 0 46%,#0c1728e8 64%,#350812ed);box-shadow:inset 0 0 90px #000,0 0 90px var(--cutin-primary)}
+.ultimate-cutin.boss .ultimate-cutin-panel>span{top:5%;left:4%;font-size:clamp(9px,1.2vw,16px);letter-spacing:7px}
+.ultimate-cutin.boss #ultimateCutinPortrait{display:none}
+.ultimate-cutin.boss .ultimate-cutin-image{width:min(760px,59vw);height:min(94dvh,820px);transform:skew(8deg) scale(1.08)}
+.ultimate-cutin.boss .ultimate-cutin-copy{max-width:39%;align-content:center}
+.ultimate-cutin.boss .ultimate-cutin-panel strong{font-size:clamp(36px,6vw,92px);line-height:.83}
+.ultimate-cutin.boss .ultimate-cutin-panel em{font-size:12px;letter-spacing:7px}
+.ultimate-cutin.boss .cutin-impact{opacity:.18;color:var(--cutin-accent);-webkit-text-stroke-color:var(--cutin-primary)}
+.ultimate-cutin.boss-titan{--cutin-primary:#ff371f;--cutin-accent:#ffe060}
+.ultimate-cutin.boss-shark{--cutin-primary:#00b9ff;--cutin-accent:#d8ffff;background:radial-gradient(circle at 28% 50%,#008dffcc,transparent 42%),linear-gradient(112deg,#001220,#043d62 56%,#00101c)}
+.ultimate-cutin.boss-gorilla{--cutin-primary:#ff3b24;--cutin-accent:#baff52;background:radial-gradient(circle at 25% 58%,#d61e12b8,transparent 37%),linear-gradient(112deg,#030806,#152617 58%,#150607)}
+.ultimate-cutin.boss-dark{--cutin-primary:#c222ff;--cutin-accent:#ff3858;background:radial-gradient(circle at 27% 52%,#8d16bdcc,transparent 40%),linear-gradient(112deg,#030008,#210630 55%,#490814)}
+.ultimate-cutin.boss-dark-leak{--cutin-primary:#ff1e8e;--cutin-accent:#ff9fe2}
+.ultimate-cutin.boss-dark-lcd{--cutin-primary:#b82cff;--cutin-accent:#ff304f}
+.ultimate-cutin.boss-dark-muscle{--cutin-primary:#ff202f;--cutin-accent:#e760ff}
+.ultimate-cutin.boss-dark-board{--cutin-primary:#9d30ff;--cutin-accent:#ff334b}
+
+@keyframes bossCutinPortrait{0%{opacity:0;transform:skew(8deg) translateX(-35%) scale(.78)}58%{opacity:1;transform:skew(8deg) translateX(3%) scale(1.14)}100%{opacity:1;transform:skew(8deg) scale(1.08)}}
+
+@media(orientation:portrait){
+  .ultimate-cutin.boss .ultimate-cutin-panel{width:100vw;height:100dvh;max-height:none;flex-direction:column;justify-content:center;gap:0;padding:5dvh 3vw 4dvh}
+  .ultimate-cutin.boss .ultimate-cutin-image{width:94vw;height:58dvh;max-height:none;transform:skew(8deg) scale(1.02);object-fit:contain}
+  .ultimate-cutin.boss .ultimate-cutin-copy{max-width:94%;text-align:center;margin-top:-2dvh}
+  .ultimate-cutin.boss .ultimate-cutin-panel small{font-size:clamp(11px,3.4vw,17px)}
+  .ultimate-cutin.boss .ultimate-cutin-panel strong{font-size:clamp(30px,10vw,58px)}
+  .ultimate-cutin.boss .ultimate-cutin-copy q{margin:10px auto 0;padding:8px 12px;font-size:clamp(16px,5.2vw,28px);line-height:1.28}
+  .ultimate-cutin.boss .ultimate-cutin-panel em{justify-self:center;margin-top:8px}
+}
+
+@media(max-height:520px){
+  .ultimate-cutin.boss .ultimate-cutin-panel{flex-direction:row;height:100dvh;padding:1vh 3vw}
+  .ultimate-cutin.boss .ultimate-cutin-image{width:56vw;height:98dvh}
+  .ultimate-cutin.boss .ultimate-cutin-copy{max-width:40%;text-align:left;margin:0}
+  .ultimate-cutin.boss .ultimate-cutin-copy q{font-size:clamp(13px,2.5vw,20px);padding:6px 9px}
+}

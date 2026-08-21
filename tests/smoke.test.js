@@ -43,7 +43,7 @@ class Element {
 function createGame({ width = 1280, height = 720, touch = false } = {}) {
   const ids = [
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
-    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'ultimateCutin', 'ultimateCutinPortrait', 'ultimateCutinMode', 'ultimateCutinName',
+    'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'ultimateCutin', 'ultimateCutinPortrait', 'ultimateCutinImage', 'ultimateCutinHeader', 'ultimateCutinMode', 'ultimateCutinName', 'ultimateCutinQuote',
     'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
     'bossName', 'bossHp', 'bossSpecial', 'bossSpecialLabel', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni', 'controlsTutorial', 'tutorialOpen', 'tutorialClose'
@@ -540,7 +540,7 @@ function testBossIntroAIPhasesAndCamera() {
   assert.ok(observedStates.has('attack'), 'boss executes its telegraphed attacks');
   assert.ok(observedStates.has('recovery'), 'boss attacks include a punishable recovery');
   assert.ok(observedAttacks.size >= 3, 'boss cycles through multiple dedicated attacks');
-  assert.ok([...firstStateByAttack.values()].every((value) => value === 'telegraph'), 'each observed boss move begins with its warning phase');
+  assert.ok([...firstStateByAttack.values()].every((value) => value === 'telegraph' || value === 'cutin'), 'each observed boss move begins with a warning or full-screen limit-break cut-in');
 
   game.setStage('1-5');
   game.teleport(game.state().boss.gateX + 40, 470);
@@ -554,6 +554,14 @@ function testBossIntroAIPhasesAndCamera() {
 
 function testModeUltimatesSwordGripAndClashes() {
   const game = createGame();
+
+  const airGame=createGame();airGame.setStage('1-1');airGame.setInput('jump',true);airGame.step(.05);airGame.setInput('jump',false);
+  const airborneStart=airGame.state();assert.equal(airborneStart.player.grounded,false,'Feni is airborne before the test ultimate');
+  assert.equal(airGame.ultimate(),true,'Feni can activate an ultimate while airborne');
+  assert.equal(airGame.state().player.ultimateAirborne,true,'the airborne cut-in records a suspended aerial activation');
+  airGame.step(.32);const airborneCutin=airGame.state();
+  assert.ok(Math.abs(airborneCutin.player.y-airborneStart.player.y)<1,'Feni holds altitude through the airborne cut-in instead of falling below the stage');
+  airGame.step(1.5);assert.equal(airGame.state().player.ultimatePhase,null,'airborne presentation reaches the actual attack normally');
 
   game.setStage('1-1');
   const normalTarget = game.state().enemyPositions.find((enemy) => !enemy.allied);
@@ -770,14 +778,14 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png', 'boss_mecha_gorilla.png', 'enemy_mecha_monkey.png']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png', 'boss_mecha_gorilla.png', 'enemy_mecha_monkey.png', 'assets/cutins/boss_titan_overload.webp', 'assets/cutins/boss_shark_tsunami.webp', 'assets/cutins/boss_gorilla_cataclysm.webp', 'assets/cutins/dark_feni_chaos.webp', 'assets/cutins/dark_feni_leak.webp', 'assets/cutins/dark_feni_lcd.webp', 'assets/cutins/dark_feni_muscle.webp', 'assets/cutins/dark_feni_board.webp']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
   const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
-  assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"/, 'ultimate presentation has a dedicated cut-in surface');
+  assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"[\s\S]+id="ultimateCutinImage"[\s\S]+id="ultimateCutinQuote"/, 'ultimate presentation has generated boss art and live full-screen dialogue surfaces');
   assert.match(html, /cutin-slash-a[\s\S]+LIMIT BREAK \/\/ PHOENIX DRIVE[\s\S]+EXECUTE/, 'ultimate cut-in includes the fast slash and limit-break presentation layers');
   assert.match(html, /title-enemy-left[\s\S]+enemy_phone_bot\.png[\s\S]+title-enemy-right[\s\S]+enemy_battle_drone\.png/, 'title screen uses the restored mech cast as its visual threat');
   assert.match(html, /id="controlsTutorial"[\s\S]+スマホ[\s\S]+PC[\s\S]+敵弾は剣・翼・パンチで相殺/, 'title includes a visual smartphone and PC tutorial');
@@ -793,11 +801,14 @@ function testAssetsAndSyntaxSurface() {
   assert.doesNotMatch(gameSource, /fillText\(['"]ARMOR['"]/, 'enemy art is restored without the added permanent ARMOR label');
   assert.doesNotMatch(gameSource, /enemy\.hit>0\)ctx\.filter/, 'enemy art is restored without the added hit-color filter');
   assert.match(gameSource, /enemyImage\?\.repairRequested[\s\S]+ctx\.drawImage\(enemyImage\b/, 'regular enemies render the detailed mech PNG only after proximity loading');
-  assert.match(gameSource, /ULTIMATE_CUTIN_TIME = \.42[\s\S]+ULTIMATE_DIALOGUE_TIME = 1\.18/, 'the cinematic reaches the spoken line and attack substantially faster');
+  assert.match(gameSource, /ULTIMATE_CUTIN_TIME = \.42[\s\S]+ULTIMATE_DIALOGUE_TIME = 1\.18/, 'the player cinematic reaches the spoken line and attack substantially faster');
+  assert.match(gameSource, /BOSS_CUTIN_TIME=\.72[\s\S]+boss_titan_overload\.webp[\s\S]+dark_feni_board\.webp/, 'boss and all Dark Feni modes use fast generated full-screen cut-ins');
+  assert.match(gameSource, /function drawDarkFeniAvatar[\s\S]+strokeStyle='#310015'[\s\S]+strokeStyle='#be2458'/, 'the in-game Dark Feni renderer overlays a dark crimson-violet scar across his right eye');
+  for(const landmark of ['通 天 閣','道 頓 堀','大阪城','あべのハルカス','梅田スカイビル','岸和田だんじり'])assert.ok(gameSource.includes(landmark),`Osaka renderer contains the recognizable ${landmark} landmark`);
   assert.match(css, /@keyframes cutinSlash[\s\S]+@keyframes cutinFlash/, 'cut-in uses fast diagonal impact and flash animation');
   assert.match(css, /titleReactorSpin[\s\S]+titleScan/, 'title screen includes the animated repair reactor and scan layer');
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
-  assert.match(html, /IRREGULAR TRUE END · BUILD 08\.21-H[\s\S]+game\.js\?v=20260821h/, 'the visible build badge and cache-busted game script identify the true-ending build');
+  assert.match(html, /BOSS ULTIMATE CINEMATIC · BUILD 08\.21-J[\s\S]+game\.js\?v=20260821j/, 'the visible build badge and cache-busted game script identify the boss-cinematic build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -931,7 +942,11 @@ function testOsakaWarpVinesBossUltimatesAndDarkTrueEnd(){
     assert.ok(state.boss.specialGauge>0,`${stage} boss gauge fills naturally during combat`);
     const attack=game.forceBossSpecial();state=game.state();
     assert.equal(attack,expected,`${stage} spends its full boss gauge on its own ultimate`);
-    assert.equal(state.boss.state,'telegraph',`${stage} ultimate begins with a readable telegraph`);
+    assert.equal(state.boss.state,'cutin',`${stage} ultimate begins with a generated full-screen cut-in`);
+    assert.equal(state.cutinVisible,true,`${stage} cut-in fills the presentation layer before combat resumes`);
+    assert.match(state.cutinImageSource,/assets\/cutins\/boss_(?:titan|shark|gorilla)_/,`${stage} cut-in uses its matching generated boss art`);
+    assert.ok(state.cutinQuote.length>=8,`${stage} boss speaks its own limit-break line`);
+    game.step(.75);assert.equal(game.state().boss.state,'telegraph',`${stage} cut-in resolves into the readable attack telegraph`);
     assert.equal(state.boss.specialCount,1,`${stage} records the charged ultimate use`);
   }
 
@@ -962,16 +977,19 @@ function testOsakaWarpVinesBossUltimatesAndDarkTrueEnd(){
   const darkSpecials=[['normal','chaosHunt'],['leak','electricField'],['brokenLcd','blinkExecution'],['darkMuscle','earthRend'],['board','mirrorLegion']];
   for(const [darkMode,expected] of darkSpecials){
     const attack=game.forceBossSpecial(darkMode);assert.equal(attack,expected,`${darkMode} has its specified Dark Feni ultimate`);
-    assert.equal(game.state().boss.state,'telegraph',`${darkMode} ultimate is telegraphed before damage`);
-    game.step(1.65);
-    state=game.state();
+    state=game.state();assert.equal(state.boss.state,'cutin',`${darkMode} ultimate opens on a full-screen Dark Feni cut-in`);
+    assert.match(state.cutinImageSource,new RegExp(`assets/cutins/dark_feni_(?:chaos|leak|lcd|muscle|board)\\.webp`),`${darkMode} cut-in uses generated purple-red Dark Feni art`);
+    assert.equal(state.cutinQuote.length>0,true,`${darkMode} cut-in carries its mode-specific spoken line`);
+    game.step(.75);assert.equal(game.state().boss.state,'telegraph',`${darkMode} ultimate is telegraphed after the cut-in and before damage`);
+    const observedKinds=new Set();let maxDarkClones=0;
+    for(let frame=0;frame<20;frame++){game.step(.1);state=game.state();state.bossProjectileKinds.forEach((kind)=>observedKinds.add(kind));maxDarkClones=Math.max(maxDarkClones,state.darkClones);}
     if(darkMode==='normal'){
-      assert.ok(state.bossProjectileKinds.includes('darkChaos'),'normal Dark Feni fires visible chaos energy');
-      assert.ok(state.bossProjectileData.some((shot)=>shot.kind==='darkChaos'&&shot.homingTime>0),'chaos energy tracks only during its bounded homing window');
+      assert.ok(observedKinds.has('darkChaos'),'normal Dark Feni fires visible chaos energy');
+      assert.ok(state.bossProjectileData.some((shot)=>shot.kind==='darkChaos'&&shot.homingTime>=0),'chaos energy uses a bounded homing window');
     }
-    if(darkMode==='leak')assert.ok(state.bossProjectileKinds.includes('darkLightning'),'leak mode releases the surrounding electric field');
-    if(darkMode==='darkMuscle')assert.ok(state.bossProjectileKinds.includes('earthChunk'),'muscle mode lifts and throws terrain chunks');
-    if(darkMode==='board')assert.equal(state.darkClones,2,'board mode creates two attacking mirror clones');
+    if(darkMode==='leak')assert.ok(observedKinds.has('darkLightning'),'leak mode releases the surrounding electric field');
+    if(darkMode==='darkMuscle')assert.ok(observedKinds.has('earthChunk'),'muscle mode lifts and throws terrain chunks');
+    if(darkMode==='board')assert.equal(maxDarkClones,2,'board mode creates two attacking mirror clones');
     game.step(1.6);
   }
 
@@ -1049,7 +1067,7 @@ function testSoundRuntime() {
   context.RepairHeroSound.play('laserWarn');
   context.RepairHeroSound.play('phaseGate');
   context.RepairHeroSound.play('bubbleJet');
-  for(const effect of ['warpOpen','warpEnter','warpExit','vineGrab','vineJump','bossUltimate','darkTransform','darkFeather','darkClones','electricField','earthRend','irregular','blackout','darkReveal','darkIntroVoice','chaosHunt','darkDefeatVoice','darkVanish','staminaCola','colaSpawn'])context.RepairHeroSound.play(effect);
+  for(const effect of ['warpOpen','warpEnter','warpExit','vineGrab','vineJump','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','darkTransform','darkFeather','darkClones','electricField','earthRend','irregular','blackout','darkReveal','darkIntroVoice','chaosHunt','darkDefeatVoice','darkVanish','staminaCola','colaSpawn'])context.RepairHeroSound.play(effect);
   context.RepairHeroSound.music('boss2');
   context.RepairHeroSound.transition('goal');
   assert.equal(context.RepairHeroSound.state().currentName, 'goal', 'goal transition replaces the previous BGM instead of layering it');

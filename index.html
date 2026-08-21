@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260821h">
+  <link rel="stylesheet" href="style.css?v=20260821j">
 </head>
 <body>
   <main id="app">
@@ -29,7 +29,7 @@
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">IRREGULAR TRUE END · BUILD 08.21-H</div>
+        <div class="title-badge">BOSS ULTIMATE CINEMATIC · BUILD 08.21-J</div>
         <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
@@ -74,9 +74,10 @@
       <i class="cutin-slash cutin-slash-a" aria-hidden="true"></i>
       <i class="cutin-slash cutin-slash-b" aria-hidden="true"></i>
       <div class="ultimate-cutin-panel">
-        <span>LIMIT BREAK // PHOENIX DRIVE</span>
+        <span id="ultimateCutinHeader">LIMIT BREAK // PHOENIX DRIVE</span>
         <canvas id="ultimateCutinPortrait" width="384" height="384" aria-hidden="true"></canvas>
-        <div class="ultimate-cutin-copy"><small id="ultimateCutinMode">NORMAL MODE</small><strong id="ultimateCutinName">FIRE FEATHER STORM</strong><em>EXECUTE</em></div>
+        <img id="ultimateCutinImage" class="ultimate-cutin-image hidden" alt="" decoding="async">
+        <div class="ultimate-cutin-copy"><small id="ultimateCutinMode">NORMAL MODE</small><strong id="ultimateCutinName">FIRE FEATHER STORM</strong><q id="ultimateCutinQuote" class="hidden"></q><em>EXECUTE</em></div>
       </div>
       <b class="cutin-impact" aria-hidden="true">ULTIMATE</b>
     </div>
@@ -100,7 +101,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260821h"></script>
-  <script src="game.js?v=20260821h"></script>
+  <script src="sound.js?v=20260821j"></script>
+  <script src="game.js?v=20260821j"></script>
 </body>
 </html>
