@@ -38,6 +38,7 @@
     teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16],gorillaGuard:[92,46,.3],minionDown:[520,1320,.25],
     ultimateVoice:[330,990,.28],armorHit:[135,460,.16],boostRail:[180,1240,.32],laserWarn:[920,180,.34],phaseGate:[260,1480,.38],bubbleJet:[420,980,.22],
     warpOpen:[180,1320,.42],warpEnter:[260,1760,.46],warpExit:[1180,330,.38],vineGrab:[330,620,.18],vineJump:[420,980,.2],bossUltimate:[72,1480,.72],
+    bossCutin:[66,1480,.5],darkBossCutin:[58,1760,.56],bossUltimateImpact:[52,720,.38],
     darkTransform:[130,1180,.48],darkFeather:[720,150,.22],darkClones:[110,1320,.58],electricField:[90,1760,.62],earthRend:[55,620,.58],
     irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3]
   };
@@ -162,10 +163,10 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'bossCutin' || name === 'darkBossCutin' || name === 'bossUltimateImpact' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
-    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
+    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
     gain.gain.setValueAtTime(volume, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
     oscillator.connect(gain).connect(context.destination);
@@ -212,6 +213,12 @@
       [220,440,880,1320,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.22,.032,index<2?'sine':'triangle'),index*42));
     } else if (name === 'bossUltimate') {
       [72,110,165,330,660,1320].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.24,.045,index<3?'sawtooth':'square'),index*46));
+    } else if (name === 'bossCutin') {
+      [66,99,198,396,792,1480].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.22,.044,index<3?'sawtooth':'square'),index*38));
+    } else if (name === 'darkBossCutin') {
+      [58,87,174,261,696,1392,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.044,index%2?'square':'sawtooth'),index*34));
+    } else if (name === 'bossUltimateImpact') {
+      [52,72,104,208,416,720].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.048,index<4?'sawtooth':'square'),index*24));
     } else if (name === 'darkTransform' || name === 'darkClones') {
       [131,196,262,392,784].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.24,.038,index%2?'triangle':'sawtooth'),index*54));
     } else if (name === 'electricField') {
