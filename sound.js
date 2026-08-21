@@ -36,7 +36,10 @@
     speedUp:[520,1320,.32],speedMax:[660,1760,.46],wingCharge:[260,780,.24],wingFire:[420,1560,.3],wingHit:[190,980,.22],bossWarning:[95,420,.52],bossMelee:[120,640,.26],
     ultimateCharge:[120,1180,.48],featherShot:[520,1380,.16],featherVolley:[240,1720,.3],allyJoin:[240,1040,.42],allyShot:[460,980,.13],
     teleportStrike:[1480,180,.22],omniRush:[70,1640,.58],kingClones:[260,1760,.62],clash:[1320,420,.16],gorillaGuard:[92,46,.3],minionDown:[520,1320,.25],
-    ultimateVoice:[330,990,.28],armorHit:[135,460,.16],boostRail:[180,1240,.32],laserWarn:[920,180,.34],phaseGate:[260,1480,.38],bubbleJet:[420,980,.22]
+    ultimateVoice:[330,990,.28],armorHit:[135,460,.16],boostRail:[180,1240,.32],laserWarn:[920,180,.34],phaseGate:[260,1480,.38],bubbleJet:[420,980,.22],
+    warpOpen:[180,1320,.42],warpEnter:[260,1760,.46],warpExit:[1180,330,.38],vineGrab:[330,620,.18],vineJump:[420,980,.2],bossUltimate:[72,1480,.72],
+    darkTransform:[130,1180,.48],darkFeather:[720,150,.22],darkClones:[110,1320,.58],electricField:[90,1760,.62],earthRend:[55,620,.58],
+    irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3]
   };
 
   function unlock() {
@@ -77,6 +80,8 @@
       factory:{lead:[247,330,370,494,440,370,330,294,247,370,494,659,587,494,440,330],bass:[82,123,110,98],step:128,type:'square'},
       deepSea:{lead:[196,247,330,392,370,330,294,247,220,294,392,494,440,392,330,277],bass:[65,82,98,73],step:170,type:'sine'},
       jungle:{lead:[294,392,440,587,659,587,494,440,330,440,523,698,784,698,587,523],bass:[73,110,98,131],step:136,type:'triangle'},
+      bonus:{lead:[523,659,784,1047,988,1175,1047,880,659,784,988,1319,1175,988,880,784],bass:[131,196,165,220],step:112,type:'triangle'},
+      darkApproach:{lead:[147,185,220,277,247,220,185,165,147,220,277,370,330,277,247,185],bass:[49,62,55,73],step:156,type:'triangle'},
       boss:{lead:[110,147,165,123,110,196,165,123],bass:[55,73,65,62],step:150,type:'sawtooth'},
       boss2:{lead:[147,220,175,247,147,294,220,175],bass:[73,98,82,110],step:120,type:'sawtooth'},
       bossTitan:{lead:[110,165,147,220,123,196,165,247],bass:[55,82,62,73],step:148,type:'sawtooth'},
@@ -85,13 +90,16 @@
       bossShark2:{lead:[131,196,262,220,294,262,220,175],bass:[55,82,65,98],step:128,type:'triangle'},
       bossGorilla:{lead:[82,123,165,147,196,165,147,110],bass:[41,55,49,62],step:154,type:'sawtooth'},
       bossGorilla2:{lead:[110,165,220,196,262,247,220,165],bass:[55,73,65,82],step:118,type:'sawtooth'},
+      darkFeni:{lead:[131,196,165,247,220,294,247,185,147,220,277,330,294,247,220,165],bass:[44,55,49,65],step:126,type:'sawtooth'},
+      darkFeni2:{lead:[165,247,330,294,392,330,294,247,196,294,392,494,440,392,330,277],bass:[55,73,65,82],step:98,type:'sawtooth'},
+      ending:{lead:[330,392,494,659,587,494,392,330,294,370,494,587,523,440,392,330],bass:[82,98,110,73],step:224,type:'sine'},
       goal:{lead:[523,659,784,1047,988,784,659,880,1047,1319,1175,1047],bass:[262,330,392,440],step:190,type:'triangle'}
     };
     const score=scores[name]||scores.game;
     synthStep = 0;
     synthTimer = window.setInterval(() => {
       if (currentName !== name) return;
-      const lead=score.lead[synthStep%score.lead.length],bossTrack=name.startsWith('boss');
+      const lead=score.lead[synthStep%score.lead.length],bossTrack=name.startsWith('boss')||name.startsWith('darkFeni');
       note(lead,name==='goal'?.24:.145,name==='goal'?.034:bossTrack?.026:.029,score.type);
       if(synthStep%2===0)note(score.bass[Math.floor(synthStep/2)%score.bass.length],.2,bossTrack?.025:.019,bossTrack?'sawtooth':'sine');
       if(synthStep%4===3)note(lead*(bossTrack?1.5:2),.08,bossTrack?.011:.009,'square');
@@ -154,10 +162,10 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
-    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
+    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
     gain.gain.setValueAtTime(volume, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
     oscillator.connect(gain).connect(context.destination);
@@ -200,6 +208,22 @@
       [220,440,880,1320].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.14,.036,index<2?'sawtooth':'triangle'),index*38));
     } else if (name === 'phaseGate') {
       [330,660,990,1480].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.032,'sine'),index*46));
+    } else if (name === 'warpOpen' || name === 'warpEnter') {
+      [220,440,880,1320,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.22,.032,index<2?'sine':'triangle'),index*42));
+    } else if (name === 'bossUltimate') {
+      [72,110,165,330,660,1320].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.24,.045,index<3?'sawtooth':'square'),index*46));
+    } else if (name === 'darkTransform' || name === 'darkClones') {
+      [131,196,262,392,784].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.24,.038,index%2?'triangle':'sawtooth'),index*54));
+    } else if (name === 'electricField') {
+      [110,220,440,880,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.18,.042,'square'),index*36));
+    } else if (name === 'irregular') {
+      [52,78,156,624,1248].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.24,.043,index<3?'sawtooth':'square'),index*42));
+    } else if (name === 'chaosHunt') {
+      [82,123,246,492,984,1476].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.21,.04,index%2?'square':'sawtooth'),index*38));
+    } else if (name === 'darkVanish') {
+      [1320,880,440,220,110,55].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.038,index<2?'triangle':'sawtooth'),index*48));
+    } else if (name === 'staminaCola') {
+      [523,659,784,1047,1319,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.034,'triangle'),index*42));
     }
   }
 

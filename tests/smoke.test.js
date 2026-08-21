@@ -45,7 +45,7 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
     'game', 'title', 'result', 'hud', 'touch', 'pause', 'hearts', 'coins', 'score', 'timer',
     'dashGauge', 'notice', 'noticeText', 'noticePortrait', 'ultimateCutin', 'ultimateCutinPortrait', 'ultimateCutinMode', 'ultimateCutinName',
     'modeHud', 'modeTimer', 'shieldCount', 'specialStatus', 'transformFlash', 'bossHud',
-    'bossName', 'bossHp', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
+    'bossName', 'bossHp', 'bossSpecial', 'bossSpecialLabel', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni', 'controlsTutorial', 'tutorialOpen', 'tutorialClose'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
@@ -82,16 +82,17 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
 
 function testStagesAndSpawn() {
   const game = createGame({ width: 390, height: 844, touch: true });
-  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5', '2-6']) {
+  for (const id of ['1-1', '1-2', '1-3', '1-4', '1-5', '1-6', '1-7', '1-8', '2-5', '2-6', '3-1']) {
     game.setStage(id);
     const start = game.state();
-    assert.equal(start.player.hp, 3, `${id}: starts with full HP`);
+    const expectedHp=id==='3-1'?7:3;
+    assert.equal(start.player.hp, expectedHp, `${id}: starts with full HP`);
     assert.ok(start.player.y >= 0 && start.player.y < start.world.height, `${id}: spawn is inside world`);
     if (!['1-7', '2-5'].includes(id)) assert.equal(start.player.grounded, true, `${id}: spawn is grounded`);
     game.step(.45);
     game.draw();
     const after = game.state();
-    assert.equal(after.player.hp, 3, `${id}: safe after first frames`);
+    assert.equal(after.player.hp, expectedHp, `${id}: safe after first frames`);
     assert.ok(after.player.y < after.world.height, `${id}: does not fall through stage`);
   }
   game.setStage('1-1');
@@ -796,7 +797,7 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /@keyframes cutinSlash[\s\S]+@keyframes cutinFlash/, 'cut-in uses fast diagonal impact and flash animation');
   assert.match(css, /titleReactorSpin[\s\S]+titleScan/, 'title screen includes the animated repair reactor and scan layer');
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
-  assert.match(html, /JUNGLE RAID UPDATE · BUILD 08\.19-F[\s\S]+game\.js\?v=20260819f/, 'the visible build badge and cache-busted game script identify the jungle raid build');
+  assert.match(html, /IRREGULAR TRUE END · BUILD 08\.21-H[\s\S]+game\.js\?v=20260821h/, 'the visible build badge and cache-busted game script identify the true-ending build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -843,7 +844,7 @@ function testLazyAssetLoadingAndMechaEnemies() {
 function testJungleRaidBossGuardMusicAndSwordTracking(){
   const expectedMusic={
     '1-1':'cityRush','1-2':'pitRun','1-3':'underground','1-4':'sky','1-5':'fortress',
-    '1-6':'maze','1-7':'sea','1-8':'factory','2-5':'deepSea','2-6':'jungle'
+    '1-6':'maze','1-7':'sea','1-8':'factory','2-5':'deepSea','2-6':'jungle','3-1':'darkApproach'
   };
   const game=createGame({width:390,height:844,touch:true});
   for(const [id,music] of Object.entries(expectedMusic)){game.setStage(id);assert.equal(game.state().stageMusic,music,`${id} selects its own stage score`);}
@@ -887,6 +888,96 @@ function testJungleRaidBossGuardMusicAndSwordTracking(){
   game.setInput('jump',true);game.step(.025);game.setInput('jump',false);const jumpState=game.state();
   assert.equal(jumpState.player.state,'jump','sword tracking test reaches jump state');
   assert.ok(jumpState.player.swordAnchor.y<0,'jumping sword grip stays on the raised hand instead of floating below the body');
+}
+
+function testOsakaWarpVinesBossUltimatesAndDarkTrueEnd(){
+  const game=createGame({width:390,height:844,touch:true});
+  game.setStage('1-1');
+  assert.equal(game.state().osakaBackdrop,true,'selected city routes render recognizable Osaka landmarks');
+  assert.equal(game.spawnWarp(),true,'a safe random warp gate can be spawned');
+  assert.ok(game.state().warpGate,'the random warp gate exists in the live world');
+  assert.equal(game.enterBonus(),true,'entering the warp transfers Feni to the bonus room');
+  let state=game.state();
+  assert.equal(state.bonus.active,true,'bonus stage runs as its own bounded room');
+  assert.ok(state.bonus.coinCount>=20,'bonus stage contains a meaningful coin route');
+  game.step(.4);game.draw();
+  assert.equal(game.exitBonus(),true,'the return gate exits the bonus stage');
+  assert.equal(game.state().bonus,null,'bonus objects are released after returning');
+
+  game.setStage('1-1');
+  game.setInput('right',true);game.step(.08);const firstWalk=game.state().player;game.step(.08);const secondWalk=game.state().player;game.setInput('right',false);
+  assert.ok(firstWalk.walkBlend&&secondWalk.walkBlend,'walking uses interpolated sprite states');
+  assert.ok(secondWalk.walkPhase>firstWalk.walkPhase,'walking phase follows travelled distance continuously');
+  assert.notEqual(secondWalk.walkBlend.blend,firstWalk.walkBlend.blend,'walking cross-fade advances without frame snapping');
+
+  game.setStage('1-7');
+  assert.equal(game.state().player.oxygenGear,true,'water stages equip Feni with the oxygen tank visual state');
+
+  game.setStage('2-6');state=game.state();
+  assert.ok(state.vines.length>=5,'jungle stage has multiple climbable and swingable vines');
+  assert.equal(game.attachVine(0),true,'Feni can grab a jungle vine');
+  const vineStart=game.state().player.y;game.setInput('up',true);game.step(.3);game.setInput('up',false);
+  assert.ok(game.state().player.y<vineStart,'up input climbs the vine');
+  game.setInput('right',true);game.setInput('jump',true);game.step(.04);game.setInput('jump',false);game.setInput('right',false);
+  assert.equal(game.state().player.vineAttached,false,'jump input launches Feni from a hanging vine');
+  assert.ok(game.state().player.vy<0,'vine jump provides a real upward launch');
+
+  const bossSpecials=[['1-5','overloadStorm'],['2-5','abyssTsunami'],['2-6','jungleCataclysm']];
+  for(const [stage,expected] of bossSpecials){
+    game.setStage(stage);state=game.state();
+    assert.ok(state.boss.arenaWidth>=3100,`${stage} has a substantially widened boss arena`);
+    if(stage!=='2-5')assert.ok(state.boss.arenaUpperPlatforms>=6,`${stage} provides upper dodge platforms`);
+    game.teleport(state.boss.gateX+160,stage==='2-5'?280:470);game.beginBoss();game.step(2.15);state=game.state();
+    assert.ok(state.boss.specialGauge>0,`${stage} boss gauge fills naturally during combat`);
+    const attack=game.forceBossSpecial();state=game.state();
+    assert.equal(attack,expected,`${stage} spends its full boss gauge on its own ultimate`);
+    assert.equal(state.boss.state,'telegraph',`${stage} ultimate begins with a readable telegraph`);
+    assert.equal(state.boss.specialCount,1,`${stage} records the charged ultimate use`);
+  }
+
+  game.setStage('3-1');state=game.state();
+  assert.equal(state.stageCount,11,'the Dark Feni duel is the eleventh full stage');
+  assert.equal(state.player.hp,7,'final duel gives Feni seven health units');
+  assert.equal(state.player.maxHp,7,'Feni final-duel maximum is seven');
+  assert.equal(state.boss.hp,7,'Dark Feni starts with seven health units');
+  assert.equal(state.boss.maxHp,7,'Dark Feni maximum is seven');
+  assert.equal(state.finale.opening.phase,'irregular','final route starts with the full-screen IRREGULAR warning');
+  assert.deepEqual(new Set(state.transformTypes),new Set(['battery','lcd','muscle','king']),'all four transformations are available during the final route');
+  game.step(1.2);assert.equal(game.state().finale.opening.phase,'blackout','IRREGULAR warning cuts to blackout');
+  game.step(2.2);assert.equal(game.state().finale.opening.active,false,'blackout resolves into the terminal stage');
+
+  game.hit();assert.equal(game.state().player.hp,6,'final-duel damage removes one of seven health units');
+  assert.equal(game.collectStaminaCola(),true,'the stamina cola can be collected');
+  state=game.state();assert.equal(state.player.hp,7,'stamina cola fully restores all seven health units');assert.equal(state.player.dash,100,'stamina cola also fully restores dash stamina');
+  assert.ok(state.finale.staminaColas.some((cola)=>cola.collected&&cola.respawns&&cola.respawnTimer>0),'collected stamina cola is scheduled to reappear');
+  game.step(22);assert.ok(game.state().finale.staminaColas.every((cola)=>!cola.collected),'stamina cola actually reappears after its bounded cooldown');
+
+  state=game.state();game.teleport(state.boss.gateX+180,470);game.beginBoss();game.step(.8);state=game.state();
+  assert.equal(state.finale.bossReveal.spoken,true,'Dark Feni speaks after the blackout reveal');
+  assert.match(state.notice,/始まりの終わりを始めよう/,'Dark Feni entrance line is visible before combat');
+  game.step(2.6);assert.equal(game.state().boss.active,true,'Dark Feni cannot attack until the reveal completes');
+  game.hitBoss(4);state=game.state();assert.equal(state.boss.hp,6,'each Dark Feni health segment absorbs oversized burst damage');assert.equal(state.boss.darkMode,'leak','losing the first health segment visibly transforms Dark Feni');
+  game.hitBoss(4);state=game.state();assert.ok(state.boss.hp>5&&state.boss.hp<6,'leak mode reduces incoming damage instead of losing a full segment');
+
+  const darkSpecials=[['normal','chaosHunt'],['leak','electricField'],['brokenLcd','blinkExecution'],['darkMuscle','earthRend'],['board','mirrorLegion']];
+  for(const [darkMode,expected] of darkSpecials){
+    const attack=game.forceBossSpecial(darkMode);assert.equal(attack,expected,`${darkMode} has its specified Dark Feni ultimate`);
+    assert.equal(game.state().boss.state,'telegraph',`${darkMode} ultimate is telegraphed before damage`);
+    game.step(1.65);
+    state=game.state();
+    if(darkMode==='normal'){
+      assert.ok(state.bossProjectileKinds.includes('darkChaos'),'normal Dark Feni fires visible chaos energy');
+      assert.ok(state.bossProjectileData.some((shot)=>shot.kind==='darkChaos'&&shot.homingTime>0),'chaos energy tracks only during its bounded homing window');
+    }
+    if(darkMode==='leak')assert.ok(state.bossProjectileKinds.includes('darkLightning'),'leak mode releases the surrounding electric field');
+    if(darkMode==='darkMuscle')assert.ok(state.bossProjectileKinds.includes('earthChunk'),'muscle mode lifts and throws terrain chunks');
+    if(darkMode==='board')assert.equal(state.darkClones,2,'board mode creates two attacking mirror clones');
+    game.step(1.6);
+  }
+
+  game.defeatBoss();game.step(.45);assert.match(game.state().notice,/それがお前の答えか/,'defeated Dark Feni delivers the requested final line');
+  game.step(3);assert.equal(game.state().finale.endRoll.active,true,'Dark Feni vanishes into shadow and starts the end roll');
+  game.draw();game.step(13);assert.equal(game.state().mode,'clear','end roll resolves to the true-ending result');
 }
 
 function testViewportMatrix() {
@@ -934,7 +1025,7 @@ function testSoundRuntime() {
   vm.runInContext(fs.readFileSync(path.join(root, 'sound.js'), 'utf8'), context, { filename: 'sound.js' });
   context.RepairHeroSound.music('title');
   context.RepairHeroSound.music('game');
-  for(const track of ['cityRush','pitRun','underground','sky','fortress','maze','sea','factory','deepSea','jungle','bossTitan','bossTitan2','bossShark','bossShark2','bossGorilla','bossGorilla2'])context.RepairHeroSound.music(track);
+  for(const track of ['cityRush','pitRun','underground','sky','fortress','maze','sea','factory','deepSea','jungle','bonus','darkApproach','bossTitan','bossTitan2','bossShark','bossShark2','bossGorilla','bossGorilla2','darkFeni','darkFeni2','ending'])context.RepairHeroSound.music(track);
   context.RepairHeroSound.play('dash');
   context.RepairHeroSound.play('rushPunch');
   context.RepairHeroSound.play('shieldBreak');
@@ -958,6 +1049,7 @@ function testSoundRuntime() {
   context.RepairHeroSound.play('laserWarn');
   context.RepairHeroSound.play('phaseGate');
   context.RepairHeroSound.play('bubbleJet');
+  for(const effect of ['warpOpen','warpEnter','warpExit','vineGrab','vineJump','bossUltimate','darkTransform','darkFeather','darkClones','electricField','earthRend','irregular','blackout','darkReveal','darkIntroVoice','chaosHunt','darkDefeatVoice','darkVanish','staminaCola','colaSpawn'])context.RepairHeroSound.play(effect);
   context.RepairHeroSound.music('boss2');
   context.RepairHeroSound.transition('goal');
   assert.equal(context.RepairHeroSound.state().currentName, 'goal', 'goal transition replaces the previous BGM instead of layering it');
@@ -981,5 +1073,6 @@ testViewportMatrix();
 testAssetsAndSyntaxSurface();
 testLazyAssetLoadingAndMechaEnemies();
 testJungleRaidBossGuardMusicAndSwordTracking();
+testOsakaWarpVinesBossUltimatesAndDarkTrueEnd();
 testSoundRuntime();
 console.log('Repair Hero smoke tests passed');
