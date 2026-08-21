@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260819f">
+  <link rel="stylesheet" href="style.css?v=20260821h">
 </head>
 <body>
   <main id="app">
@@ -22,18 +22,18 @@
       <div id="modeHud" class="mode-hud hidden"><span>ACTIVE TRANSFORM</span><b id="modeTimer">NORMAL</b><em id="shieldCount" class="shield-count hidden">SHIELD ×5</em><em id="specialStatus" class="special-status">ULTIMATE READY</em></div>
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
-    <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div><i id="bossHp"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
+    <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div class="boss-hp-track"><i id="bossHp"></i></div><small id="bossSpecialLabel">必殺技ゲージ</small><div class="boss-special-track"><i id="bossSpecial"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
 
     <section id="title" class="screen title">
       <div class="title-scan" aria-hidden="true"></div>
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">JUNGLE RAID UPDATE · BUILD 08.19-F</div>
+        <div class="title-badge">IRREGULAR TRUE END · BUILD 08.21-H</div>
         <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
-        <div class="title-status" aria-label="ゲーム内容"><span>10 STAGES</span><span>5 FORMS</span><span>3 BOSS TYPES</span></div>
+        <div class="title-status" aria-label="ゲーム内容"><span>11 STAGES</span><span>5 FORMS</span><span>4 BOSS TYPES</span></div>
         <button id="start"><i>IGNITION</i> ゲームスタート <small>SPACE / ENTER</small></button>
         <button id="tutorialOpen" class="tutorial-open"><i>HOW TO PLAY</i> 操作方法を見る <small>スマホ / PC</small></button>
         <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E</p>
@@ -49,7 +49,7 @@
           <article><h3>📱 スマホ</h3><p><b>◀ / ▶</b> 左右移動</p><p><b>⚡← / →⚡</b> 左右ダッシュ</p><p><b>⬆</b> ジャンプ（空中でもう一度で二段ジャンプ）</p><p><b>⚔ / 👊</b> 剣攻撃・ラッシュ</p><p><b>🪽</b> 翼攻撃　<b>💥</b> 必殺技</p><p><b>▼</b> しゃがむ・足場を降りる・潜る</p></article>
           <article><h3>⌨️ PC</h3><p><b>A / D・← / →</b> 左右移動</p><p><b>Q / E</b> 左右ダッシュ</p><p><b>SPACE</b> ジャンプ / 二段ジャンプ</p><p><b>X / J</b> 剣・パンチ</p><p><b>Z / K</b> 翼攻撃　<b>C / V</b> 必殺技</p><p><b>S / ↓</b> しゃがむ・足場を降りる</p></article>
         </div>
-        <p class="tutorial-tip">TIP：敵の予告線を見てジャンプかダッシュ。敵弾は剣・翼・パンチで相殺できます。</p>
+        <p class="tutorial-tip">TIP：敵弾は剣・翼・パンチで相殺できます。紫のワープゲートはボーナスステージへ、ジャングルのツタは▲でつかめます。</p>
         <button id="tutorialClose">わかった！</button>
       </div>
     </section>
@@ -89,7 +89,7 @@
         <button data-input="dashRight" class="dash" aria-label="右へダッシュ"><b>→⚡</b><small>右ダッシュ</small></button>
         <button data-input="left" aria-label="左へ移動"><b>◀</b><small>ひだり</small></button>
         <button data-input="right" aria-label="右へ移動"><b>▶</b><small>みぎ</small></button>
-        <button data-input="up" class="vertical-only direction-up" aria-label="上へ移動"><b>▲</b><small>うえ</small></button>
+        <button data-input="up" class="vertical-only direction-up" aria-label="上へ移動・ツタを登る"><b>▲</b><small>うえ／登る</small></button>
         <button data-input="down" class="drop-control direction-down" aria-label="伏せる・足場を降りる・下へ潜る"><b>▼</b><small>しゃがむ<br>降りる／潜る</small></button>
       </div>
       <div class="action-pad">
@@ -100,7 +100,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260819f"></script>
-  <script src="game.js?v=20260819f"></script>
+  <script src="sound.js?v=20260821h"></script>
+  <script src="game.js?v=20260821h"></script>
 </body>
 </html>
