@@ -7,13 +7,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260823b">
+  <link rel="stylesheet" href="style.css?v=20260823c">
 </head>
 <body>
   <main id="app">
     <canvas id="game" aria-label="Repair Hero ゲーム画面"></canvas>
 
     <header id="hud" class="hud hidden" aria-label="ゲーム情報">
+      <div id="characterHud" class="character-hud"><span>PLAYER</span><b id="characterName">FENI-CHAN</b></div>
       <div class="hp"><span>HP</span><b id="hearts">♥ ♥ ♥</b></div>
       <div><span>COIN</span><b>● <i id="coins">00</i></b></div>
       <div><span>SCORE</span><b id="score">000000</b></div>
@@ -32,11 +33,22 @@
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">DARK FENI MASTER DESIGN · BUILD 08.23-B</div>
+        <div class="title-badge">DARK FENI PLAYABLE · BUILD 08.23-C</div>
         <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
         <div class="title-status" aria-label="ゲーム内容"><span>11 STAGES</span><span>5 FORMS</span><span>4 BOSS TYPES</span></div>
+        <section id="characterSelect" class="character-select" aria-label="プレイアブルキャラクター選択">
+          <p><b>PLAYABLE SELECT</b><span>通常ステージ用／物語編はフェニちゃん固定</span></p>
+          <div>
+            <button id="selectFeni" class="character-card selected" data-character="feni" aria-pressed="true">
+              <img src="./feni.png" alt="" decoding="async"><span><b>FENI-CHAN</b><small>REPAIR HERO</small></span>
+            </button>
+            <button id="selectDarkFeni" class="character-card dark" data-character="darkFeni" aria-pressed="false">
+              <img src="./assets/dark-feni/dark_feni_playable_icon.webp" alt="" decoding="async"><span><b>DARK FENI</b><small>SWORD / DARK ULTIMATE</small></span>
+            </button>
+          </div>
+        </section>
         <button id="start"><i>IGNITION</i> ゲームスタート <small>SPACE / ENTER</small></button>
         <button id="darkFeniStart" class="dark-feni-start"><i>IRREGULAR ROUTE</i> DARK FENI BATTLE <small>FULL STORY EVENT</small></button>
         <button id="tutorialOpen" class="tutorial-open"><i>HOW TO PLAY</i> 操作方法を見る <small>スマホ / PC</small></button>
@@ -127,7 +139,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260823b"></script>
-  <script src="game.js?v=20260823b"></script>
+  <script src="sound.js?v=20260823c"></script>
+  <script src="game.js?v=20260823c"></script>
 </body>
 </html>
