@@ -40,7 +40,7 @@
     warpOpen:[180,1320,.42],warpEnter:[260,1760,.46],warpExit:[1180,330,.38],vineGrab:[330,620,.18],vineJump:[420,980,.2],bossUltimate:[72,1480,.72],
     bossCutin:[66,1480,.5],darkBossCutin:[58,1760,.56],bossUltimateImpact:[52,720,.38],
     darkTransform:[130,1180,.48],darkFeather:[720,150,.22],darkClones:[110,1320,.58],electricField:[90,1760,.62],earthRend:[55,620,.58],
-    irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3],
+    irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],defeatFreeze:[42,38,.22],defeatCutin:[54,1840,.62],transformBreak:[1280,62,.58],kneelImpact:[92,42,.46],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3],
     dialogueTap:[420,620,.08],heartGet:[330,1040,.28],heartMax:[440,1760,.52],heartBreak:[520,58,.5],heartRevive:[65,1320,.72],
     windRise:[90,620,.55],swordSummon:[72,1480,.65],swordPoint:[780,88,.34],battleStart:[55,1760,.72],rumble:[42,58,.85],
     darkSlashWave:[1200,95,.24],swordGround:[130,55,.34],darkFlameRift:[68,980,.58],rushStart:[120,1420,.3],dive:[880,70,.34],darkJump:[180,620,.18],
@@ -171,10 +171,10 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'bossCutin' || name === 'darkBossCutin' || name === 'bossUltimateImpact' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' || name === 'rumble' || name === 'finalCollapse' || name === 'darkFlameRift' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'heartRevive' || name === 'endingChime' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'bossCutin' || name === 'darkBossCutin' || name === 'bossUltimateImpact' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' || name === 'rumble' || name === 'finalCollapse' || name === 'darkFlameRift' || name === 'defeatFreeze' || name === 'defeatCutin' || name === 'transformBreak' || name === 'kneelImpact' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'heartRevive' || name === 'endingChime' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
-    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola','battleStart','heartRevive','rumble','finalCollapse','escapeStart'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
+    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','electricField','earthRend','irregular','chaosHunt','darkVanish','defeatCutin','transformBreak','kneelImpact','staminaCola','battleStart','heartRevive','rumble','finalCollapse','escapeStart'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
     gain.gain.setValueAtTime(volume, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
     oscillator.connect(gain).connect(context.destination);

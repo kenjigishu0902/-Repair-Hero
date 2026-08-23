@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260822a">
+  <link rel="stylesheet" href="style.css?v=20260823b">
 </head>
 <body>
   <main id="app">
@@ -32,7 +32,7 @@
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">DARK FENI STORY BOSS · BUILD 08.22-A</div>
+        <div class="title-badge">DARK FENI MASTER DESIGN · BUILD 08.23-B</div>
         <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
@@ -79,6 +79,14 @@
       <p>IRREGULAR</p>
       <button id="tryDarkFeni">Try…？</button>
     </section>
+    <section id="storyCinematic" class="story-cinematic hidden" aria-hidden="true">
+      <i class="story-cinematic-flame story-cinematic-flame-a"></i>
+      <i class="story-cinematic-flame story-cinematic-flame-b"></i>
+      <div class="story-cinematic-frame">
+        <canvas id="storyPortrait" width="768" height="768" role="img" aria-label="会話中のキャラクター顔アップ"></canvas>
+        <div class="story-cinematic-id"><small id="storyCinematicSpeaker">ダークフェニ</small><strong id="storyCinematicMood">SILENT ENCOUNTER</strong></div>
+      </div>
+    </section>
     <section id="storyDialogue" class="story-dialogue hidden" role="dialog" aria-live="assertive" aria-label="ストーリー会話">
       <div class="story-dialogue-card">
         <small id="storySpeaker">DARK FENI</small>
@@ -119,7 +127,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260822a"></script>
-  <script src="game.js?v=20260822a"></script>
+  <script src="sound.js?v=20260823b"></script>
+  <script src="game.js?v=20260823b"></script>
 </body>
 </html>
