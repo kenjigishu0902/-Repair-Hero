@@ -15,7 +15,11 @@
     modeHud: $('#modeHud'), modeTimer: $('#modeTimer'), shieldCount: $('#shieldCount'), specialStatus: $('#specialStatus'), transformFlash: $('#transformFlash'),
     bossHud: $('#bossHud'), bossName: $('#bossName'), bossHp: $('#bossHp'), bossSpecial: $('#bossSpecial'), bossSpecialLabel: $('#bossSpecialLabel'), goalLock: $('#goalLock'), attack: $('#attack'),
     oxygenHud: $('#oxygenHud'), oxygenGauge: $('#oxygenGauge'), resultFeni: $('#resultFeni'),
-    tutorial: $('#controlsTutorial'), tutorialOpen: $('#tutorialOpen'), tutorialClose: $('#tutorialClose')
+    tutorial: $('#controlsTutorial'), tutorialOpen: $('#tutorialOpen'), tutorialClose: $('#tutorialClose'),
+    darkHeartHud: $('#darkHeartHud'), darkHeartCount: $('#darkHeartCount'), darkHeartMax: $('#darkHeartMax'),
+    irregularChoice: $('#irregularChoice'), tryDarkFeni: $('#tryDarkFeni'), darkFeniStart: $('#darkFeniStart'),
+    storyDialogue: $('#storyDialogue'), storySpeaker: $('#storySpeaker'), storyLine: $('#storyLine'), storyTap: $('#storyTap'),
+    storyBanner: $('#storyBanner'), storyFx: $('#storyFx')
   };
 
   function createLazyImage(source) {
@@ -142,6 +146,24 @@
   const DARK_ULTIMATE_LINES={
     normal:'堕ちろ、混沌に',leak:'もうあの頃には戻れないんだよっ！！',brokenLcd:'痛みを知れ…',darkMuscle:'ミンチにしてあげるっ♡',board:'この世界ごと、書き換える…！！'
   };
+  const DARK_STORY_STATE=Object.freeze({
+    INTRO:'INTRO',HEART_AREA:'HEART_AREA',PRE_BATTLE_DIALOGUE:'PRE_BATTLE_DIALOGUE',BATTLE_INTRO:'BATTLE_INTRO',
+    BATTLE:'BATTLE',BOSS_DEFEATED:'BOSS_DEFEATED',POST_BATTLE_DIALOGUE:'POST_BATTLE_DIALOGUE',
+    COLLAPSE_CUTSCENE:'COLLAPSE_CUTSCENE',ESCAPE:'ESCAPE',ENDING:'ENDING',COMPLETE:'COMPLETE'
+  });
+  const DARK_PRE_DIALOGUE=[
+    {speaker:'ダークフェニ',line:'ここまで来たか…',focus:'boss'},
+    {speaker:'フェニちゃん',line:'お前は…まさか…',focus:'player'},
+    {speaker:'ダークフェニ',line:'終わりの始まりを告げようか…',focus:'scar'}
+  ];
+  const DARK_POST_DIALOGUE=[
+    {speaker:'ダークフェニ',line:'…強くなったな…',focus:'boss'},
+    {speaker:'フェニちゃん',line:'なんでこんな事ｯ！！',focus:'player'},
+    {speaker:'ダークフェニ',line:'これが俺の選択さ…',focus:'boss'},
+    {speaker:'フェニちゃん',line:'他にもやりようはあったはずだ！！',focus:'player'},
+    {speaker:'ダークフェニ',line:'お前にも、時期が来れば分かるさ…',focus:'boss'}
+  ];
+  const DARK_HEART_MAX=15;
   const BOSS_CUTIN_TIME=.72;
   const BOSS_CUTIN_DATA={
     titan:{source:'./assets/cutins/boss_titan_overload.webp',mode:'MEGA BUG TITAN // CORE 100%',name:'ZERO-DAY MELTDOWN',quote:'修復不能の未来へ、焼き尽くせ！！',className:'boss-titan'},
@@ -225,7 +247,7 @@
   let goalUnlocked = true;
   let breakables = [], currents = [], bubbles = [], gimmicks = [], oxygen = 100, oxygenDamageTimer = 0, chaserWall = null;
   let vines = [], warpGate = null, warpSpawnTimer = 0, bonusStage = null, darkClones = [];
-  let finaleOpening = null, darkBossReveal = null, endRoll = null;
+  let darkStory = null;
   let assetScanStage=-1,assetScanX=-Infinity;
   const bossCutinPreloads=new Map();
 
@@ -856,7 +878,8 @@
     chaserWall=STAGES[currentStage].chaseWall?{x:-320,w:190,speed:76,maxSpeed:305,warning:0,warningCooldown:0}:null;
     oxygen=100; oxygenDamageTimer=0; ui.oxygenHud.classList.toggle('hidden',!STAGES[currentStage].water);
     warpGate=null;warpSpawnTimer=8+Math.random()*9;bonusStage=null;
-    finaleOpening=STAGES[currentStage].finale?{active:true,timer:0,phase:'irregular'}:null;darkBossReveal=null;endRoll=null;
+    darkStory=STAGES[currentStage].finale?createDarkStory():null;
+    hideDarkStoryUi();
     ui.ultimateCutin?.classList.add('hidden');ui.notice?.classList.remove('ultimate-speech');
     document.body.classList.toggle('water-stage',!!STAGES[currentStage].water);document.body.classList.toggle('jungle-stage',stageTheme==='jungle');document.body.classList.toggle('dark-stage',stageTheme==='dark');document.body.classList.remove('bonus-stage','king-mode');
     ui.bossName.textContent=boss?.name||'MEGA BUG TITAN';
@@ -882,10 +905,8 @@
     ui.pause.classList.remove('hidden');
     ui.modeHud.classList.add('hidden');
     ui.bossHud.classList.add('hidden'); ui.attack.classList.add('hidden'); document.body.classList.remove('boss-phase2'); ui.goalLock.textContent='GOAL LOCKED'; ui.goalLock.classList.remove('unlocked');
-    if(STAGES[currentStage].finale){hideNotice();sound('irregular');}
-    else say(`STAGE ${STAGES[currentStage].id}\n${STAGES[currentStage].name}`);
-    window.RepairHeroSound?.music(stageMusicName());
-    sound('start');
+    if(STAGES[currentStage].finale){beginDarkRouteChoice();}
+    else {say(`STAGE ${STAGES[currentStage].id}\n${STAGES[currentStage].name}`);window.RepairHeroSound?.music(stageMusicName());sound('start');}
   }
 
   function setModeResult(cleared) {
@@ -918,35 +939,278 @@
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
     ui.tutorial?.classList.add('hidden');
-    finaleOpening=null;darkBossReveal=null;endRoll=null;
+    darkStory=null;hideDarkStoryUi();
     document.body.classList.remove('water-stage','jungle-stage','dark-stage','bonus-stage','king-mode','boss-phase2');
     window.RepairHeroSound?.music('title');
   }
 
-  function updateFinaleOpening(dt) {
-    if(!finaleOpening?.active)return false;
-    finaleOpening.timer+=dt;
-    const nextPhase=finaleOpening.timer<1.08?'irregular':finaleOpening.timer<1.72?'blackout':'terminal';
-    if(nextPhase!==finaleOpening.phase){finaleOpening.phase=nextPhase;sound(nextPhase==='blackout'?'blackout':'darkReveal');}
-    if(finaleOpening.timer>=3.25){
-      finaleOpening.active=false;say('FINAL STAGE 3-1\n終焉回路：始原の果て');sound('darkReveal');
-    }
-    return finaleOpening.active;
+  function startDarkFeniRoute(){
+    const index=STAGES.findIndex((stage)=>stage.finale);if(index<0)return false;currentStage=index;startGame();return true;
   }
 
-  function beginEndRoll() {
-    if(endRoll?.active)return;
-    endRoll={active:true,timer:0,finished:false};darkBossReveal=null;hideNotice();Object.keys(input).forEach((key)=>{input[key]=false;});
-    player.vx=0;player.vy=0;player.invincible=99;ui.hud.classList.add('hidden');ui.touch.classList.add('hidden');ui.pause.classList.add('hidden');ui.bossHud.classList.add('hidden');
-    if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('ending',.65);else window.RepairHeroSound?.music('ending');
-    sound('darkVanish');
+  function isDarkStory(){return !!(STAGES[currentStage]?.finale&&darkStory);}
+
+  function clearGameplayInput(){
+    Object.keys(input).forEach((key)=>{input[key]=false;});
+    if(player){player.attackHeld=false;player.wingHeld=false;player.specialHeld=false;player.jumpHeld=false;player.vx=0;}
   }
 
-  function updateEndRoll(dt) {
-    if(!endRoll?.active)return false;
-    endRoll.timer+=dt;
-    if(endRoll.timer>=12.8&&!endRoll.finished){endRoll.finished=true;endRoll.active=false;setModeResult(true);$('#resultKicker').textContent='TRUE END';$('#resultTitle').textContent='REPAIR HERO 完結';}
+  function darkStoryLocked(){
+    if(!isDarkStory())return false;
+    return [DARK_STORY_STATE.INTRO,DARK_STORY_STATE.PRE_BATTLE_DIALOGUE,DARK_STORY_STATE.BATTLE_INTRO,
+      DARK_STORY_STATE.BOSS_DEFEATED,DARK_STORY_STATE.POST_BATTLE_DIALOGUE,DARK_STORY_STATE.COLLAPSE_CUTSCENE,
+      DARK_STORY_STATE.ENDING,DARK_STORY_STATE.COMPLETE].includes(darkStory.state)||darkStory.revive.active||darkStory.retry.active;
+  }
+
+  function setDarkStoryState(state){
+    if(!darkStory||darkStory.state===state)return false;
+    darkStory.state=state;darkStory.timer=0;darkStory.flags={};
+    const locked=darkStoryLocked();document.body.classList.toggle('story-locked',locked);
+    ui.pause?.classList.toggle('hidden',locked);
+    if(locked)clearGameplayInput();
     return true;
+  }
+
+  function darkStoryOnce(name,callback){
+    if(!darkStory||darkStory.flags[name])return false;darkStory.flags[name]=true;callback?.();return true;
+  }
+
+  function buildDarkHearts(){
+    const arenaStart=WORLD_WIDTH-BOSS_ARENA_WIDTH;
+    return Array.from({length:DARK_HEART_MAX},(_,index)=>{
+      const x=520+index*(arenaStart-1180)/(DARK_HEART_MAX-1);const floor=surfaceAt(x,FLOOR_Y);
+      return {x,y:(floor?.y||FLOOR_Y)-78,collected:false,phase:index*.72};
+    });
+  }
+
+  function createDarkStory(){
+    return {state:DARK_STORY_STATE.INTRO,timer:0,flags:{},focus:'player',dialogue:null,dialogueIndex:0,tapLock:0,
+      hearts:buildDarkHearts(),absorbs:[],heartStock:0,heartMax:DARK_HEART_MAX,battleCheckpointHearts:0,
+      revive:{active:false,timer:0,restored:false},retry:{active:false,timer:0},
+      intro:{wind:0,hairLift:0,scarReveal:0,eyeGlow:0,aura:0,swordSummoned:false,swordPointing:false,rumble:0,banner:false},
+      collapse:{intensity:0,consume:0,bossGone:false},escape:{active:false,wallX:0,goalX:0,startX:0,debris:[],spawnTimer:.5,lastJump:false,restarts:0},
+      ending:{phase:'fade',titleAlpha:0},bossPose:'idle',bossVisible:true,completed:false};
+  }
+
+  function hideDarkStoryUi(){
+    ui.irregularChoice?.classList.add('hidden');ui.storyDialogue?.classList.add('hidden');ui.storyBanner?.classList.add('hidden');
+    ui.storyFx?.classList.add('hidden');ui.darkHeartHud?.classList.add('hidden');ui.darkHeartMax?.classList.add('hidden');
+    document.body.classList.remove('story-locked','dark-escape','dark-ending');
+  }
+
+  function updateDarkHeartHud(flash=false){
+    if(!ui.darkHeartHud||!darkStory)return;
+    ui.darkHeartCount.textContent=String(darkStory.heartStock).padStart(2,'0');
+    ui.darkHeartMax.classList.toggle('hidden',darkStory.heartStock<DARK_HEART_MAX);
+    ui.darkHeartHud.classList.toggle('maxed',darkStory.heartStock>=DARK_HEART_MAX);
+    if(flash){ui.darkHeartHud.classList.remove('flash');void ui.darkHeartHud.offsetWidth;ui.darkHeartHud.classList.add('flash');}
+  }
+
+  function beginDarkRouteChoice(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.INTRO)return;
+    clearGameplayInput();hideNotice();hideUltimateCutin();
+    ui.irregularChoice?.classList.remove('hidden');ui.darkHeartHud?.classList.add('hidden');ui.storyDialogue?.classList.add('hidden');
+    ui.hud.classList.add('hidden');ui.touch.classList.add('hidden');ui.pause.classList.add('hidden');
+    document.body.classList.add('story-locked');window.RepairHeroSound?.music(null);sound('irregular');
+  }
+
+  function beginDarkExploration(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.INTRO)return false;
+    setDarkStoryState(DARK_STORY_STATE.HEART_AREA);ui.irregularChoice?.classList.add('hidden');ui.darkHeartHud?.classList.remove('hidden');
+    ui.hud.classList.remove('hidden');ui.touch.classList.remove('hidden');ui.pause.classList.remove('hidden');document.body.classList.remove('story-locked');
+    player.invincible=1;player.physicsReady=true;updateDarkHeartHud();
+    if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('darkHorror',1.2);else window.RepairHeroSound?.music('darkHorror');
+    sound('darkReveal');return true;
+  }
+
+  function showDarkDialogueLine(){
+    if(!darkStory?.dialogue)return;
+    const entry=darkStory.dialogue[darkStory.dialogueIndex];if(!entry)return;
+    darkStory.focus=entry.focus;darkStory.tapLock=.18;ui.storySpeaker.textContent=entry.speaker;ui.storyLine.textContent=`「${entry.line}」`;
+    ui.storyDialogue?.classList.remove('hidden');sound('dialogueTap');
+    if(entry.focus==='player'){player.facing=1;player.vx=-34;player.state='alert';}
+    else if(boss){boss.vx=0;boss.state='story';darkStory.bossPose=entry.focus==='scar'?'scar':'dialogue';}
+  }
+
+  function beginDarkPreBattleDialogue(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.HEART_AREA||darkStory.flags.dialogueStarted)return false;
+    setDarkStoryState(DARK_STORY_STATE.PRE_BATTLE_DIALOGUE);darkStory.dialogue=DARK_PRE_DIALOGUE;darkStory.dialogueIndex=0;darkStory.focus='boss';
+    clearGameplayInput();projectiles=[];droplets=[];shockwaves=shockwaves.filter((wave)=>wave.friendly);wingShots=[];
+    for(const enemy of enemies)if(!enemy.allied)enemy.alive=false;
+    boss.intro=true;boss.active=false;boss.state='story';boss.vx=0;boss.vy=0;boss.y=FLOOR_Y-boss.h;boss.x=Math.max(boss.arenaLeft+900,Math.min(boss.arenaRight-380,player.x+390));
+    bossGate.closed=true;player.invincible=99;ui.bossHud.classList.add('hidden');document.body.classList.add('story-locked');
+    if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('darkHorror',.65);showDarkDialogueLine();return true;
+  }
+
+  function advanceDarkDialogue(){
+    if(!darkStory||darkStory.tapLock>0||![DARK_STORY_STATE.PRE_BATTLE_DIALOGUE,DARK_STORY_STATE.POST_BATTLE_DIALOGUE].includes(darkStory.state))return false;
+    darkStory.dialogueIndex+=1;
+    if(darkStory.dialogueIndex<darkStory.dialogue.length){showDarkDialogueLine();return true;}
+    ui.storyDialogue?.classList.add('hidden');
+    if(darkStory.state===DARK_STORY_STATE.PRE_BATTLE_DIALOGUE)beginDarkBattleIntro();else beginDarkCollapse();
+    return true;
+  }
+
+  function beginDarkBattleIntro(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.PRE_BATTLE_DIALOGUE)return false;
+    setDarkStoryState(DARK_STORY_STATE.BATTLE_INTRO);darkStory.dialogue=null;darkStory.focus='boss';darkStory.bossPose='bow';
+    darkStory.intro={wind:0,hairLift:0,scarReveal:0,eyeGlow:0,aura:0,swordSummoned:false,swordPointing:false,rumble:0,banner:false};
+    player.vx=0;player.facing=1;boss.vx=0;boss.state='story';document.body.classList.add('story-locked');return true;
+  }
+
+  function beginDarkBattle(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.BATTLE_INTRO)return;
+    setDarkStoryState(DARK_STORY_STATE.BATTLE);darkStory.battleCheckpointHearts=darkStory.heartStock;darkStory.bossPose='combat';
+    ui.storyBanner?.classList.add('hidden');ui.bossHud.classList.remove('hidden');ui.touch.classList.remove('hidden');ui.pause.classList.remove('hidden');
+    document.body.classList.remove('story-locked');player.invincible=1.25;player.hasSword=true;boss.intro=true;boss.active=true;boss.state=bossMoveState();boss.timer=0;boss.cooldown=1.1;
+    boss.specialGauge=20;boss.specialReady=false;boss.attackHistory=[];boss.darkModeDwell=8;enemyVolleyLock=99;
+    updateHud();
+  }
+
+  function updateDarkBattleIntro(dt){
+    const t=darkStory.timer,intro=darkStory.intro;
+    intro.wind=Math.min(1,Math.max(0,(t-.55)/1.1));
+    intro.hairLift=Math.min(1,Math.max(0,(t-1.35)/1));if(t>1.35)darkStory.bossPose='hairLift';
+    intro.scarReveal=Math.min(1,Math.max(0,(t-2.15)/.7));intro.eyeGlow=Math.min(1,Math.max(0,(t-2.7)/.55));
+    intro.aura=Math.min(1,Math.max(0,(t-3.2)/.8));
+    if(t>=4.05)darkStoryOnce('sword',()=>{intro.swordSummoned=true;darkStory.bossPose='swordReady';sound('swordSummon');shake=8;});
+    if(t>=4.85)darkStoryOnce('point',()=>{intro.swordPointing=true;darkStory.bossPose='swordPoint';sound('swordPoint');});
+    if(t>=5.5)darkStoryOnce('silence',()=>window.RepairHeroSound?.music(null));
+    if(t>=6.15)darkStoryOnce('rumble',()=>{intro.rumble=1;shake=reducedEffects?17:28;sound('rumble');});
+    if(t>=6.34)darkStoryOnce('battleMusic',()=>{if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('darkFeni',.12);else window.RepairHeroSound?.music('darkFeni');});
+    if(t>=6.52)darkStoryOnce('banner',()=>{intro.banner=true;ui.storyBanner?.classList.remove('hidden');sound('battleStart');});
+    if(t>=7.3)beginDarkBattle();
+  }
+
+  function clearDarkBossAttacks(){
+    projectiles=[];droplets=[];darkClones=[];wingShots=[];shockwaves=shockwaves.filter((wave)=>wave.friendly);combatFx=combatFx.filter((fx)=>fx.owner!=='boss');
+  }
+
+  function beginDarkRevive(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.BATTLE||darkStory.revive.active||darkStory.heartStock<=0)return false;
+    darkStory.heartStock-=1;darkStory.revive={active:true,timer:0,restored:false};player.dead=false;player.hp=0;player.vx=0;player.vy=0;player.invincible=3;
+    player.state='revive';slowMotion=Math.max(slowMotion,.45);ui.storyFx?.classList.remove('hidden');document.body.classList.add('story-locked');
+    updateDarkHeartHud(true);sound('heartBreak');return true;
+  }
+
+  function updateDarkRevive(dt){
+    const revive=darkStory.revive;if(!revive.active)return;revive.timer+=dt;
+    if(revive.timer>=.48&&!revive.restored){revive.restored=true;player.hp=player.maxHp;player.revivePose=1.6;player.invincible=2.75;
+      for(let i=0;i<effectCount(34,16);i++)combatFx.push({x:player.x+player.w/2+(Math.random()-.5)*90,y:player.y+player.h/2+(Math.random()-.5)*125,life:.5+Math.random()*.6,size:18+Math.random()*28,type:'fire'});
+      sound('heartRevive');shake=Math.max(shake,16);updateHud();}
+    if(revive.timer>=1.18){revive.active=false;ui.storyFx?.classList.add('hidden');document.body.classList.remove('story-locked');player.state='idle';}
+  }
+
+  function beginDarkRetry(){
+    if(!darkStory||darkStory.retry.active)return;darkStory.retry={active:true,timer:0};clearDarkBossAttacks();boss.active=false;player.dead=false;player.vx=0;player.vy=0;
+    document.body.classList.add('story-locked');window.RepairHeroSound?.transition?.(null,.3);sound('gameover');
+  }
+
+  function resetDarkBattle(){
+    darkStory.retry={active:false,timer:0};darkStory.heartStock=darkStory.battleCheckpointHearts;updateDarkHeartHud(true);
+    player.hp=player.maxHp;player.dead=false;player.invincible=2.5;placePlayerSafely(boss.arenaLeft+360,FLOOR_Y,{allowAir:false});player.facing=1;player.dash=100;
+    boss.hp=boss.maxHp;boss.alive=true;boss.active=true;boss.storyDefeated=false;boss.state=bossMoveState();boss.x=boss.arenaRight-520;boss.y=FLOOR_Y-boss.h;boss.vx=0;boss.vy=0;boss.phase=1;boss.cooldown=1.25;boss.hit=0;boss.specialGauge=20;boss.specialReady=false;boss.attackName=null;boss.attackHistory=[];setDarkBossMode(0);
+    document.body.classList.remove('story-locked');window.RepairHeroSound?.transition?.('darkFeni',.35);sound('revive');updateHud();
+  }
+
+  function beginDarkBossDefeated(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.BATTLE)return false;
+    setDarkStoryState(DARK_STORY_STATE.BOSS_DEFEATED);clearDarkBossAttacks();hideUltimateCutin();bossDefeated=true;boss.active=false;boss.storyDefeated=true;boss.state='kneel';boss.vx=0;boss.vy=0;
+    darkStory.bossPose='kneel';player.vx=0;player.attackTime=0;player.specialTime=0;player.invincible=99;ui.bossHud.classList.add('hidden');ui.attack.classList.add('hidden');
+    window.RepairHeroSound?.transition?.(null,.75);slowMotion=.6;sound('bossDown');return true;
+  }
+
+  function beginDarkPostDialogue(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.BOSS_DEFEATED)return;
+    setDarkStoryState(DARK_STORY_STATE.POST_BATTLE_DIALOGUE);darkStory.dialogue=DARK_POST_DIALOGUE;darkStory.dialogueIndex=0;darkStory.focus='boss';darkStory.bossPose='gentle';
+    player.state='hurt';ui.storyDialogue?.classList.remove('hidden');showDarkDialogueLine();
+  }
+
+  function beginDarkCollapse(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.POST_BATTLE_DIALOGUE)return;
+    setDarkStoryState(DARK_STORY_STATE.COLLAPSE_CUTSCENE);darkStory.dialogue=null;darkStory.collapse={intensity:0,consume:0,bossGone:false};darkStory.focus='both';darkStory.bossPose='accept';
+    ui.storyDialogue?.classList.add('hidden');hideNotice();window.RepairHeroSound?.music(null);player.state='hurt';player.facing=1;
+  }
+
+  function buildDarkEscapeRoute(){
+    const left=boss.arenaLeft+60,right=boss.arenaRight-30;
+    staticPlatforms.splice(0,staticPlatforms.length,...staticPlatforms.filter((platform)=>!platform.bossArena));
+    const segments=[
+      {x:left,y:FLOOR_Y,w:500,h:190},{x:left+590,y:FLOOR_Y-35,w:500,h:225},
+      {x:left+1180,y:FLOOR_Y-105,w:430,h:295},{x:left+1715,y:FLOOR_Y-25,w:505,h:215},
+      {x:left+2325,y:FLOOR_Y-125,w:390,h:315},{x:left+2890,y:FLOOR_Y-20,w:Math.max(300,right-(left+2890)),h:210}
+    ];
+    const routeSegments=segments.map((segment,index)=>({...segment,bossArena:true,darkEscape:true,escapeIndex:index,collapseTimer:0,collapsed:false}));
+    staticPlatforms.push(...routeSegments);return {left,right,segments:routeSegments};
+  }
+
+  function beginDarkEscape(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.COLLAPSE_CUTSCENE)return;
+    setDarkStoryState(DARK_STORY_STATE.ESCAPE);const route=buildDarkEscapeRoute(),startX=route.left+100;
+    darkStory.escape={active:true,wallX:route.left-520,goalX:route.right-130,startX,debris:[],spawnTimer:.35,lastJump:false,restarts:0,segments:route.segments};
+    boss.alive=false;boss.intro=false;boss.active=false;bossGate.closed=false;player.invincible=1.4;placePlayerSafely(startX,FLOOR_Y);player.facing=1;player.dash=100;player.state='sprint';
+    ui.hud.classList.remove('hidden');ui.touch.classList.remove('hidden');ui.pause.classList.remove('hidden');ui.darkHeartHud.classList.add('hidden');ui.attack.classList.add('hidden');
+    document.body.classList.remove('story-locked');document.body.classList.add('dark-escape');
+    if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('darkEscape',.28);else window.RepairHeroSound?.music('darkEscape');sound('escapeStart');
+  }
+
+  function restartDarkEscape(){
+    const escape=darkStory.escape;escape.restarts+=1;escape.wallX=escape.startX-520;escape.debris=[];
+    for(const segment of escape.segments){segment.collapseTimer=0;if(segment.collapsed){segment.collapsed=false;if(!staticPlatforms.includes(segment))staticPlatforms.push(segment);}}
+    placePlayerSafely(escape.startX,FLOOR_Y);player.hp=player.maxHp;player.invincible=2;player.dash=100;player.dead=false;player.vx=0;player.vy=0;sound('revive');
+  }
+
+  function updateDarkEscape(dt){
+    const escape=darkStory.escape;escape.wallX+=Math.min(235,132+darkStory.timer*2.3)*dt;escape.spawnTimer-=dt;
+    for(const segment of escape.segments.slice(0,-1)){if(!segment.collapsed&&player.x>segment.x+segment.w+150)segment.collapseTimer+=dt;if(segment.collapseTimer>.42&&!segment.collapsed){segment.collapsed=true;const index=staticPlatforms.indexOf(segment);if(index>=0)staticPlatforms.splice(index,1);sound('crumble');shake=Math.max(shake,10);}}
+    if(escape.spawnTimer<=0){escape.spawnTimer=reducedEffects?.58:.38;const x=Math.min(escape.goalX,player.x+viewportWidth*(.55+Math.random()*.35));escape.debris.push({x,y:cameraY-90-Math.random()*180,w:24+Math.random()*32,h:30+Math.random()*38,vy:190+Math.random()*130,spin:(Math.random()-.5)*4,angle:0});trimPool(escape.debris,reducedEffects?12:22);}
+    for(const rock of escape.debris){rock.vy+=420*dt;rock.y+=rock.vy*dt;rock.angle+=rock.spin*dt;if(player.invincible<=0&&overlap(player,{x:rock.x-rock.w/2,y:rock.y-rock.h/2,w:rock.w,h:rock.h})){player.invincible=.8;player.vx=-170;player.vy=-260;sound('damage');shake=11;rock.dead=true;}if(rock.y>WORLD_HEIGHT+120)rock.dead=true;}
+    escape.debris=escape.debris.filter((rock)=>!rock.dead);
+    if(player.x<escape.wallX+145||player.y>WORLD_HEIGHT+20){restartDarkEscape();return;}
+    if(!escape.lastJump&&player.x>escape.goalX-430&&!player.grounded){escape.lastJump=true;sound('lastJump');shake=Math.max(shake,18);}
+    if(player.x>=escape.goalX){beginDarkEnding();}
+  }
+
+  function beginDarkEnding(){
+    if(!darkStory||darkStory.state!==DARK_STORY_STATE.ESCAPE)return;
+    setDarkStoryState(DARK_STORY_STATE.ENDING);darkStory.ending={phase:'collapse',titleAlpha:0};darkStory.escape.active=false;clearGameplayInput();
+    ui.hud.classList.add('hidden');ui.touch.classList.add('hidden');ui.pause.classList.add('hidden');ui.darkHeartHud.classList.add('hidden');
+    document.body.classList.remove('dark-escape');document.body.classList.add('dark-ending','story-locked');player.invincible=99;player.state='land';player.facing=1;
+    window.RepairHeroSound?.transition?.(null,.45);sound('finalCollapse');shake=reducedEffects?20:34;
+  }
+
+  function updateDarkEnding(){
+    const t=darkStory.timer;if(t>=.72&&darkStory.ending.phase==='collapse'){darkStory.ending.phase='rise';player.state='idle';}if(t>=1.42&&darkStory.ending.phase==='rise'){darkStory.ending.phase='silence';player.facing=-1;player.state='hurt';}if(t>=4.2&&darkStory.ending.phase!=='title'){darkStory.ending.phase='title';window.RepairHeroSound?.transition?.('darkEnding',1.1);sound('endingChime');}
+    if(t>=11.8&&!darkStory.completed){darkStory.completed=true;window.RepairHeroSound?.music(null);}
+    if(t>=13.1){darkStory.state=DARK_STORY_STATE.COMPLETE;showTitle();}
+  }
+
+  function updateDarkHeartPickups(dt){
+    for(const absorb of darkStory.absorbs){absorb.life-=dt;absorb.x+=(player.x+player.w/2-absorb.x)*Math.min(1,dt*9);absorb.y+=(player.y+player.h/2-absorb.y)*Math.min(1,dt*9);}darkStory.absorbs=darkStory.absorbs.filter((absorb)=>absorb.life>0);
+    for(const heart of darkStory.hearts){heart.phase+=dt*4;if(heart.collected||!overlap(player,{x:heart.x-30,y:heart.y-35,w:60,h:70}))continue;
+      heart.collected=true;darkStory.heartStock=Math.min(DARK_HEART_MAX,darkStory.heartStock+1);player.score+=500;updateDarkHeartHud(true);sound(darkStory.heartStock===DARK_HEART_MAX?'heartMax':'heartGet');
+      darkStory.absorbs.push({x:heart.x,y:heart.y,life:.55});
+      for(let i=0;i<effectCount(22,10);i++)combatFx.push({x:heart.x+(Math.random()-.5)*45,y:heart.y+(Math.random()-.5)*45,life:.35+Math.random()*.5,size:10+Math.random()*20,type:'fire'});
+    }
+  }
+
+  function updateDarkStory(dt){
+    if(!isDarkStory())return false;darkStory.tapLock=Math.max(0,darkStory.tapLock-dt);darkStory.timer+=dt;
+    if(darkStory.revive.active)updateDarkRevive(dt);
+    if(darkStory.retry.active){darkStory.retry.timer+=dt;if(darkStory.retry.timer>1.25)resetDarkBattle();return true;}
+    if(darkStory.state===DARK_STORY_STATE.HEART_AREA)updateDarkHeartPickups(dt);
+    else if(darkStory.state===DARK_STORY_STATE.BATTLE_INTRO){updateDarkBattleIntro(dt);return true;}
+    else if(darkStory.state===DARK_STORY_STATE.BOSS_DEFEATED){if(darkStory.timer>.9)beginDarkPostDialogue();return true;}
+    else if(darkStory.state===DARK_STORY_STATE.COLLAPSE_CUTSCENE){
+      const c=darkStory.collapse;c.intensity=Math.min(1,Math.max(0,(darkStory.timer-2.6)/5));c.consume=Math.min(1,Math.max(0,(darkStory.timer-4.15)/2.9));
+      if(darkStory.timer>=2.6)darkStoryOnce('rumble',()=>{window.RepairHeroSound?.transition?.('darkCollapse',.8);sound('rumble');});
+      if(darkStory.timer>=4.15)darkStoryOnce('consume',()=>sound('darkConsume'));
+      if(c.consume>=1&&!c.bossGone){c.bossGone=true;darkStory.bossVisible=false;sound('darkVanish');}
+      if(darkStory.timer>=8.35)darkStoryOnce('majorCollapse',()=>{shake=reducedEffects?24:40;sound('finalCollapse');});
+      if(darkStory.timer>=9.45)beginDarkEscape();return true;
+    }else if(darkStory.state===DARK_STORY_STATE.ESCAPE)updateDarkEscape(dt);
+    else if(darkStory.state===DARK_STORY_STATE.ENDING){updateDarkEnding();return true;}
+    return darkStoryLocked();
   }
 
   function drawStateFrameToCanvas(targetCanvas,modeName,stateName) {
@@ -1049,7 +1313,7 @@
   };
   const BOSS_SHOT_RULES = {
     torpedo:{range:760,life:3.3}, bossOrb:{range:680,life:3.2}, waterBlade:{range:700,life:3.1}, magma:{range:620,life:3}, bossWave:{range:720,life:3.2},
-    darkFeather:{range:720,life:3.2},darkLightning:{range:650,life:3},darkSlash:{range:680,life:1.7},earthChunk:{range:900,life:3.5},darkChaos:{range:930,life:3.8}
+    darkFeather:{range:720,life:3.2},darkLightning:{range:650,life:3},darkSlash:{range:680,life:1.7},darkFlame:{range:80,life:1.15},earthChunk:{range:900,life:3.5},darkChaos:{range:930,life:3.8}
   };
 
   function trimPool(pool, max) {
@@ -1275,7 +1539,7 @@
   }
 
   function hurt(sourceX) {
-    if (player.invincible > 0 || mode !== 'playing' || playerMode === 'king') return;
+    if (player.invincible > 0 || mode !== 'playing' || playerMode === 'king' || (isDarkStory()&&(darkStory.revive.active||darkStory.retry.active||darkStoryLocked()))) return;
     if (playerMode === 'lcd' && player.shields > 0) {
       player.shields -= 1;
       player.invincible = .55;
@@ -1303,8 +1567,12 @@
     sound('damage');
     updateHud();
     if (player.hp <= 0) {
-      player.dead = true;
-      player.respawnTimer=.65;player.respawnMessage='REPAIR RESTART!';
+      if(isDarkStory()&&darkStory.state===DARK_STORY_STATE.BATTLE){
+        if(!beginDarkRevive())beginDarkRetry();
+      }else{
+        player.dead = true;
+        player.respawnTimer=.65;player.respawnMessage='REPAIR RESTART!';
+      }
     }
   }
 
@@ -1347,6 +1615,7 @@
 
   function damageBoss(amount, force = 0) {
     if (!boss?.alive || !boss.active || boss.hit > 0 || boss.state === 'dormant'||boss.state==='intro'||boss.state==='cutin') return false;
+    if(boss.type==='darkFeni'&&isDarkStory()&&darkStory.state!==DARK_STORY_STATE.BATTLE)return false;
     const minions=gorillaMinionsAlive();
     if(boss.type==='gorilla'&&minions>0){
       if((boss.guardNotice||0)<=0){boss.guardNotice=.7;say(`MINION LOCK ×${minions}\nメカ小猿を先に倒せ！`);sound('gorillaGuard');}
@@ -1368,14 +1637,14 @@
     const ratio=boss.hp/boss.maxHp;const nextPhase=ratio<=.29?3:ratio<=.59?2:1;
     if(nextPhase>boss.phase){hideUltimateCutin();boss.phase=nextPhase;boss.cooldown=.95;boss.state=boss.type==='shark'?'swim':'chase';boss.timer=0;boss.attackFired=false;boss.attackName=null;boss.usingSpecial=false;boss.cutinTimer=0;boss.submerged=false;if(boss.type==='shark')boss.vy=0;document.body.classList.add('boss-phase2');say(nextPhase===3?'FINAL PHASE!!\nLIMIT BREAK':'PHASE 2!!\nOVERDRIVE');window.RepairHeroSound?.music(bossMusicName(nextPhase));sound('bossWarning');}
     if (boss.hp <= 0) {
-      hideUltimateCutin();boss.alive=false; bossDefeated=true; boss.state='defeated'; boss.defeat=.001; boss.vx=0; boss.vy=0;darkClones=[]; slowMotion=.75; sound('bossDown');
-      if(boss.type==='darkFeni'){boss.defeatLineShown=true;say('..それがお前の答えか..');ui.notice.classList.add('dark-boss-speech');sound('darkDefeatVoice');}
+      if(boss.type==='darkFeni'&&isDarkStory())beginDarkBossDefeated();
+      else {hideUltimateCutin();boss.alive=false; bossDefeated=true; boss.state='defeated'; boss.defeat=.001; boss.vx=0; boss.vy=0;darkClones=[]; slowMotion=.75; sound('bossDown');}
     }
     return true;
   }
 
   function performAttack() {
-    if (bonusStage?.active||(!player.hasSword && playerMode !== 'muscle') || player.attackCooldown > 0 || player.wingAttackTime>0 || player.specialTime>0 || player.ultimateSequence || player.dead) return;
+    if (darkStoryLocked()||bonusStage?.active||(!player.hasSword && playerMode !== 'muscle') || player.attackCooldown > 0 || player.wingAttackTime>0 || player.specialTime>0 || player.ultimateSequence || player.dead) return;
     const punch = playerMode === 'muscle'&&!player.hasSword;
     player.attackTime = punch ? .86 : SWORD_ATTACK_DURATION; player.attackCooldown = punch ? 1.08 : .48;
     player.rushPulse = punch ? .86 : 0;
@@ -1418,7 +1687,7 @@
   }
 
   function performWingAttack() {
-    if(bonusStage?.active||player.dead||player.clearTime||player.wingCooldown>0||player.wingAttackTime>0||player.attackTime>0||player.specialTime>0||player.ultimateSequence)return;
+    if(darkStoryLocked()||bonusStage?.active||player.dead||player.clearTime||player.wingCooldown>0||player.wingAttackTime>0||player.attackTime>0||player.specialTime>0||player.ultimateSequence)return;
     player.wingAttackTime=.62;player.wingCooldown=.95;player.wingAttackFired=false;player.state='wingAttack';player.idleAction=null;player.idleTime=0;
     player.vx*=.82;sound('wingCharge');
   }
@@ -1488,7 +1757,7 @@
   }
 
   function performUltimate() {
-    if(bonusStage?.active||!player||player.dead||player.clearTime||player.specialTime>0||player.ultimateSequence||player.attackTime>0||player.wingAttackTime>0)return false;
+    if(darkStoryLocked()||bonusStage?.active||!player||player.dead||player.clearTime||player.specialTime>0||player.ultimateSequence||player.attackTime>0||player.wingAttackTime>0)return false;
     if(playerMode==='normal'&&player.specialCooldown>0)return false;
     if(playerMode!=='normal'&&player.specialUsed)return false;
     player.specialUsed=playerMode!=='normal';player.specialCooldown=playerMode==='normal'?8.5:modeTimer+1;
@@ -1748,7 +2017,7 @@
       }
     }
     if (playerMode === 'king') { player.y=Math.max(35,Math.min(activeWorldHeight()-player.h-35,player.y)); if(player.y<=35)player.vy=Math.max(0,player.vy); }
-    if(!Number.isFinite(player.x)||!Number.isFinite(player.y)||player.y>activeWorldHeight()+70){if(bonusStage?.active){player.x=110;player.y=bonusStage.floorY-player.h;player.vx=0;player.vy=0;player.grounded=true;}else respawnAfterFall();return;}
+    if(!Number.isFinite(player.x)||!Number.isFinite(player.y)||player.y>activeWorldHeight()+70){if(bonusStage?.active){player.x=110;player.y=bonusStage.floorY-player.h;player.vx=0;player.vy=0;player.grounded=true;}else if(isDarkStory()&&darkStory.state===DARK_STORY_STATE.ESCAPE)restartDarkEscape();else respawnAfterFall();return;}
     if(!bonusStage?.active&&player.grounded&&!stageIsWater()){
       const stable=staticPlatforms.find((platform)=>!platform.ceiling&&player.x+player.w>platform.x+4&&player.x<platform.x+platform.w-4&&Math.abs(player.y+player.h-platform.y)<9);
       const danger=hazards.some((hazard)=>hazardIsActive(hazard)&&overlap(player,hazard));
@@ -1792,7 +2061,8 @@
   const BOSS_TELEGRAPH_TIME={charge:.78,shoot:.82,jump:.72,slam:.9,sweep:.7,roar:1.05,magma:.92,
     bite:.72,torpedo:.9,breach:.78,dive:1.05,waterBurst:.92,maelstrom:1.1,
     apeCharge:.86,groundPound:1.02,scrapThrow:.92,armSweep:.78,roarPulse:1.08,
-    overloadStorm:1.28,abyssTsunami:1.32,jungleCataclysm:1.3,darkFeather:.78,darkDash:.76,darkBlink:.92,darkRush:.86,darkDive:.9,chaosHunt:1.32,
+    overloadStorm:1.28,abyssTsunami:1.32,jungleCataclysm:1.3,darkFeather:.78,darkDash:.76,darkBlink:.92,darkRush:1.02,darkDive:1.12,
+    darkHighSpeedSlash:1.0,darkSlashWave:.92,darkFlameRift:1.28,chaosHunt:1.32,
     electricField:1.35,blinkExecution:1.16,earthRend:1.32,mirrorLegion:1.28};
 
   function gorillaMinionsAlive(){return boss?.type==='gorilla'?enemies.filter((enemy)=>enemy.alive&&enemy.bossMinion).length:0;}
@@ -1812,6 +2082,7 @@
     if(boss.type==='gorilla')ensureImage(gorillaBossImage);else if(boss.type==='shark')ensureImage(enemyImages.mechaShark);else if(boss.type!=='darkFeni')ensureImage(bossImage);
     if(boss.type==='darkFeni')for(const modeName of['normal','battery','lcd','muscle','king'])preloadPlayerMode(modeName);
     preloadBossUltimateCutin();
+    if(boss.type==='darkFeni'&&isDarkStory()&&darkStory.state===DARK_STORY_STATE.HEART_AREA){beginDarkPreBattleDialogue();return;}
     const introDuration=boss.type==='darkFeni'?(boss.introDuration||3.25):BOSS_INTRO_DURATION;
     boss.introDuration=introDuration;boss.intro=true;boss.active=false;boss.state='intro';boss.timer=0;boss.introLock=introDuration;bossIntro=.001;
     const revealDistance=portrait?430:720;boss.x=Math.max(boss.arenaLeft,Math.min(boss.arenaRight-boss.w,player.x+revealDistance));
@@ -1822,10 +2093,7 @@
     for(const enemy of enemies){if(!enemy.allied){enemy.alive=false;enemy.squish=.18;}}
     droplets=[];projectiles=[];shockwaves=shockwaves.filter((wave)=>wave.friendly);
     spawnGorillaMinions();
-    if(boss.type==='darkFeni'){
-      player.maxHp=7;player.hp=7;player.checkpointHp=7;player.dash=100;darkBossReveal={active:true,timer:0,spoken:false};
-      hideNotice();sound('irregular');
-    }
+    if(boss.type==='darkFeni'){player.maxHp=7;player.hp=7;player.checkpointHp=7;player.dash=100;hideNotice();sound('irregular');}
     player.invincible=Math.max(player.invincible,introDuration+.35);
     ui.bossHud.classList.remove('hidden');
     if(boss.type!=='darkFeni')say(player.hasSword?'WARNING!!\nおいどんが諦めるのを諦めろ！！':`WARNING!!\n${boss.name}`,player.hasSword?'alert':null,playerMode);
@@ -1846,7 +2114,7 @@
   }
 
   function setDarkBossMode(index) {
-    if(boss?.type!=='darkFeni')return;boss.darkModeIndex=((index%DARK_MODE_ORDER.length)+DARK_MODE_ORDER.length)%DARK_MODE_ORDER.length;boss.darkMode=DARK_MODE_ORDER[boss.darkModeIndex];boss.darkModeTimer=.7;
+    if(boss?.type!=='darkFeni')return;boss.darkModeIndex=((index%DARK_MODE_ORDER.length)+DARK_MODE_ORDER.length)%DARK_MODE_ORDER.length;boss.darkMode=DARK_MODE_ORDER[boss.darkModeIndex];boss.darkModeTimer=8;boss.darkModeDwell=8;
     boss.name=`DARK FENI-CHAN // ${DARK_MODE_LABELS[boss.darkMode]}`;ui.bossName.textContent=boss.name;combatFx.push({x:boss.x+boss.w/2,y:boss.y+boss.h/2,life:.8,size:115,type:'teleport'});sound('darkTransform');
     preloadBossUltimateCutin();
   }
@@ -1859,14 +2127,22 @@
     const titan=[['charge','shoot','jump'],['charge','shoot','jump','slam','sweep'],['charge','shoot','jump','slam','sweep','roar','magma']];
     const shark=[['bite','torpedo','breach'],['bite','torpedo','breach','dive','waterBurst'],['bite','torpedo','breach','dive','waterBurst','maelstrom']];
     const gorilla=[['apeCharge','armSweep','scrapThrow'],['apeCharge','armSweep','scrapThrow','groundPound'],['apeCharge','armSweep','scrapThrow','groundPound','roarPulse']];
-    const darkChoices={normal:['darkFeather','darkDash'],leak:['darkFeather','darkDash'],brokenLcd:['darkFeather','darkBlink'],darkMuscle:['darkFeather','darkRush'],board:['darkFeather','darkDive']};
-    const choices=boss.type==='darkFeni'?(darkChoices[boss.darkMode]||darkChoices.leak):(boss.type==='shark'?shark:boss.type==='gorilla'?gorilla:titan)[boss.phase-1];
+    if(boss.type==='darkFeni'){
+      const distance=Math.abs((player.x+player.w/2)-(boss.x+boss.w/2));
+      const byMode={normal:['darkHighSpeedSlash','darkSlashWave','darkFeather'],leak:['darkSlashWave','darkFlameRift','darkHighSpeedSlash'],brokenLcd:['darkHighSpeedSlash','darkBlink','darkSlashWave'],darkMuscle:['darkRush','darkFlameRift','darkHighSpeedSlash'],board:['darkDive','darkSlashWave','darkFlameRift']};
+      let choices=[...(byMode[boss.darkMode]||byMode.normal)];
+      if(distance<260)choices.unshift('darkRush');else if(distance>620)choices.unshift(boss.grounded?'darkDive':'darkSlashWave');
+      const recent=(boss.attackHistory||[]).slice(-2);const fresh=choices.filter((name)=>!recent.includes(name));if(fresh.length)choices=fresh;
+      const choice=choices[(boss.attackIndex+Math.floor(distance/240))%choices.length];boss.attackIndex+=1;boss.attackHistory=[...(boss.attackHistory||[]),choice].slice(-3);return choice;
+    }
+    const choices=(boss.type==='shark'?shark:boss.type==='gorilla'?gorilla:titan)[boss.phase-1];
     const choice=choices[boss.attackIndex%choices.length];boss.attackIndex+=1;return choice;
   }
 
   function beginBossAttack(name) {
     boss.attackName=name;boss.state='telegraph';boss.timer=0;boss.attackFired=false;boss.attackStep=0;boss.vx=0;
     boss.targetX=player.x+player.w/2;boss.targetY=player.y+player.h/2;boss.targetFacing=player.facing;
+    boss.riftTargets=name==='darkFlameRift'?[-330,-165,0,165,330].map((offset)=>Math.max(boss.arenaLeft+70,Math.min(boss.arenaRight-70,boss.targetX+offset))):[];
     boss.usingSpecial=['overloadStorm','abyssTsunami','jungleCataclysm','chaosHunt','electricField','blinkExecution','earthRend','mirrorLegion'].includes(name);
     if(boss.usingSpecial){
       boss.specialGauge=0;boss.specialReady=false;boss.specialCount=(boss.specialCount||0)+1;
@@ -1881,7 +2157,7 @@
     if(completedSpecial)hideUltimateCutin();
     boss.state='recovery';boss.timer=0;boss.recovery=recovery;boss.vx*=.12;boss.vy*=boss.type==='shark' ? 0.25 : 1;
     boss.cooldown=boss.phase===3?2.05:boss.phase===2?2.35:2.75;
-    boss.usingSpecial=false;if(completedSpecial&&boss.type==='darkFeni')advanceDarkMode();
+    boss.usingSpecial=false;if(completedSpecial&&boss.type==='darkFeni'&&(boss.darkModeDwell||0)<=0)advanceDarkMode();
   }
 
   function spawnBossGroundWave(x,vx,kind='bossWave',maxDistance=620) {
@@ -2004,6 +2280,26 @@
     if(boss.attackName==='darkFeather'){
       if(!boss.attackFired){boss.attackFired=true;for(const offset of[-55,0,55]){const aim=aimVelocity(fromX,fromY,boss.targetX,boss.targetY+offset,255+(boss.phase-1)*18);spawnBossShot({kind:'darkFeather',x:fromX,y:fromY,w:40,h:22,...aim,maxDistance:720});}sound('darkFeather');}
       if(boss.timer>.46)finishBossAttack(.62);
+    }else if(boss.attackName==='darkHighSpeedSlash'){
+      if(!boss.attackFired){boss.attackFired=true;boss.attackStep=1;boss.hidden=true;const oldX=boss.x,side=boss.targetX>fromX?1:-1;
+        boss.x=Math.max(boss.arenaLeft,Math.min(boss.arenaRight-boss.w,boss.targetX-side*175));boss.y=FLOOR_Y-boss.h;boss.vx=0;boss.vy=0;
+        combatFx.push({x:oldX+boss.w/2,y:fromY,life:.38,size:105,type:'teleport'});sound('darkVanish');}
+      if(boss.attackStep===1&&boss.timer>.2){boss.attackStep=2;boss.hidden=false;const slashDirection=Math.sign(boss.targetX-(boss.x+boss.w/2))||1;
+        spawnBossShot({kind:'darkSlash',x:boss.targetX-slashDirection*250,y:boss.targetY,w:118,h:42,vx:slashDirection*560,vy:0,maxDistance:560,life:1.2});
+        combatFx.push({x:boss.x+boss.w/2,y:boss.y+boss.h/2,life:.5,size:150,type:'teleport'});sound('teleportStrike');shake=Math.max(shake,20);}
+      if(boss.timer>.62){boss.hidden=false;finishBossAttack(1.0);}
+    }else if(boss.attackName==='darkSlashWave'){
+      if(!boss.attackFired){boss.attackFired=true;const slashDirection=Math.sign(boss.targetX-fromX)||1;
+        spawnBossShot({kind:'darkSlash',x:fromX+slashDirection*48,y:fromY,w:112,h:38,vx:slashDirection*(430+boss.phase*35),vy:(boss.targetY-fromY)*.22,maxDistance:760,life:1.65});
+        combatFx.push({x:fromX+slashDirection*75,y:fromY,life:.45,size:155,type:'slash'});sound('darkSlashWave');shake=Math.max(shake,12);}
+      if(boss.timer>.48)finishBossAttack(.92);
+    }else if(boss.attackName==='darkFlameRift'){
+      if(!boss.attackFired){boss.attackFired=true;boss.attackStep=1;sound('swordGround');shake=Math.max(shake,12);}
+      if(boss.attackStep===1&&boss.timer>.24){boss.attackStep=2;for(const targetX of boss.riftTargets||[]){
+          spawnBossShot({kind:'darkFlame',x:targetX,y:FLOOR_Y-62,w:70,h:124,vx:0,vy:0,maxDistance:80,life:1.05,ignoreTerrain:true});
+          combatFx.push({x:targetX,y:FLOOR_Y-18,life:.7,size:80,type:'fire'});
+        }sound('darkFlameRift');shake=Math.max(shake,18);}
+      if(boss.timer>.72)finishBossAttack(1.08);
     }else if(boss.attackName==='chaosHunt'){
       if(!boss.attackFired){
         boss.attackFired=true;boss.attackStep=1;
@@ -2016,9 +2312,20 @@
       if(boss.attackStep===1&&boss.timer>.32){boss.attackStep=2;for(let index=0;index<9;index++){const angle=index*Math.PI*2/9,originX=fromX+Math.cos(angle)*85,originY=fromY+Math.sin(angle)*85,aim=aimVelocity(originX,originY,boss.targetX,boss.targetY,315);spawnBossShot({kind:'darkFeather',x:originX,y:originY,w:44,h:24,...aim,maxDistance:760});}shake=Math.max(shake,20);sound('darkFeather');}
       if(boss.attackStep===2&&boss.timer>.7){boss.attackStep=3;for(const offset of[-190,0,190]){const initial=aimVelocity(fromX+offset*.35,fromY-70,boss.targetX+offset,boss.targetY,245);spawnBossShot({kind:'darkChaos',x:fromX+offset*.35,y:fromY-70,w:48,h:48,...initial,maxDistance:900,life:3.4,turnRate:.85,homingTime:1.05,phase:offset*.01});}shake=Math.max(shake,24);sound('bossUltimateImpact');}
       if(boss.timer>1.12)finishBossAttack(1.28);
-    }else if(boss.attackName==='darkDash'||boss.attackName==='darkRush'||boss.attackName==='darkDive'){
-      if(!boss.attackFired){boss.attackFired=true;const speed=boss.attackName==='darkRush'?690:boss.attackName==='darkDive'?610:540;const aim=aimVelocity(fromX,fromY,boss.targetX,boss.targetY,speed);boss.vx=boss.attackName==='darkDive'?aim.vx:direction*speed;boss.vy=boss.attackName==='darkDive'?aim.vy:0;sound('bossMelee');}
-      if(boss.timer>(boss.attackName==='darkRush' ? .68 : .58))finishBossAttack(.75);
+    }else if(boss.attackName==='darkDash'){
+      if(!boss.attackFired){boss.attackFired=true;boss.vx=direction*570;sound('bossMelee');}
+      if(boss.timer>.56)finishBossAttack(.8);
+    }else if(boss.attackName==='darkRush'){
+      if(!boss.attackFired){boss.attackFired=true;boss.attackStep=1;boss.vx=direction*720;sound('rushStart');}
+      if(boss.attackStep===1&&boss.timer>.13){boss.attackStep=2;performDarkBlinkStrike(0);}
+      if(boss.attackStep===2&&boss.timer>.31){boss.attackStep=3;performDarkBlinkStrike(1);}
+      if(boss.attackStep===3&&boss.timer>.49){boss.attackStep=4;performDarkBlinkStrike(2);}
+      if(boss.timer>.7)finishBossAttack(1.18);
+    }else if(boss.attackName==='darkDive'){
+      if(!boss.attackFired){boss.attackFired=true;boss.attackStep=1;boss.x=Math.max(boss.arenaLeft,Math.min(boss.arenaRight-boss.w,boss.targetX-boss.w/2));boss.y=Math.max(70,boss.targetY-430);boss.vx=0;boss.vy=0;sound('windRise');}
+      if(boss.attackStep===1&&boss.timer>.24){boss.attackStep=2;boss.vy=880;sound('dive');}
+      if(boss.attackStep===2&&(boss.y+boss.h>=FLOOR_Y-4||boss.timer>.66)){boss.attackStep=3;boss.y=FLOOR_Y-boss.h;boss.vy=0;spawnBossGroundWave(boss.x+boss.w/2,-470,'darkVoltWave',820);spawnBossGroundWave(boss.x+boss.w/2,470,'darkVoltWave',820);sound('stomp');shake=Math.max(shake,26);}
+      if(boss.timer>.86)finishBossAttack(1.08);
     }else if(boss.attackName==='blinkExecution'){
       if(!boss.attackFired){boss.attackFired=true;boss.attackStep=1;performDarkBlinkStrike(0);}
       if(boss.attackStep===1&&boss.timer>.25){boss.attackStep=2;performDarkBlinkStrike(1);}
@@ -2062,28 +2369,21 @@
 
   function updateBoss(dt) {
     if(!boss)return;
+    if(boss.type==='darkFeni'&&isDarkStory()){
+      if(darkStory.state===DARK_STORY_STATE.HEART_AREA){if(!boss.intro&&player.x>bossGate.x)beginBossEncounter();return;}
+      if(darkStory.state!==DARK_STORY_STATE.BATTLE)return;
+    }
     if(darkClones.length)updateDarkClones(dt);
     if(!boss.intro&&player.x>bossGate.x)beginBossEncounter();
     if(boss.defeat){
       boss.defeat+=dt;
-      if(boss.type==='darkFeni'){
-        player.vx*=Math.pow(.002,dt);player.invincible=Math.max(player.invincible,.4);
-        if(!boss.defeatLineShown&&boss.defeat>.34){boss.defeatLineShown=true;say('..それがお前の答えか..');ui.notice.classList.add('dark-boss-speech');sound('darkDefeatVoice');}
-        if(boss.defeat>1.05&&boss.defeat-dt<=1.05){shake=reducedEffects?16:25;for(let i=0;i<effectCount(18,9);i++)combatFx.push({x:boss.x+Math.random()*boss.w,y:boss.y+Math.random()*boss.h,life:.8,size:42+Math.random()*55,type:'teleport'});sound('darkVanish');}
-        if(boss.defeat>2.75)beginEndRoll();
-        return;
-      }
       if(boss.defeat>.55&&boss.defeat-dt<=.55){shake=reducedEffects?24:35;for(let i=0;i<effectCount(12,7);i++)combatFx.push({x:boss.x+Math.random()*boss.w,y:boss.y+Math.random()*boss.h,life:.8,size:80,type:'explosion'});say('BOSS DEFEATED!!');}
       if(boss.defeat>1.7&&bossGate.closed){bossGate.closed=false;ui.goalLock.textContent='GOAL UNLOCKED!!';ui.goalLock.classList.add('unlocked');say('GOAL UNLOCKED!!');window.RepairHeroSound?.music(stageMusicName());}return;}
     if(!boss.intro||!boss.alive)return;
     if(!boss.active){
       boss.introLock=Math.max(0,boss.introLock-dt);boss.timer+=dt;boss.y+=(Math.sin(elapsed*3)*8)*dt;
-      if(boss.type==='darkFeni'&&darkBossReveal?.active){
-        darkBossReveal.timer+=dt;
-        if(!darkBossReveal.spoken&&darkBossReveal.timer>=.72){darkBossReveal.spoken=true;say('始まりの終わりを始めよう….');ui.notice.classList.add('dark-boss-speech');sound('darkIntroVoice');}
-      }
-      if(boss.introLock<=0){boss.active=true;boss.state=bossMoveState();boss.timer=0;boss.cooldown=1.15;if(darkBossReveal)darkBossReveal.active=false;say('BOSS BATTLE\nFIGHT!!');sound('start');}return;}
-    boss.hit=Math.max(0,boss.hit-dt);boss.guardNotice=Math.max(0,(boss.guardNotice||0)-dt);boss.darkModeTimer=Math.max(0,(boss.darkModeTimer||0)-dt);boss.cooldown-=dt;
+      if(boss.introLock<=0){boss.active=true;boss.state=bossMoveState();boss.timer=0;boss.cooldown=1.15;say('BOSS BATTLE\nFIGHT!!');sound('start');}return;}
+    boss.hit=Math.max(0,boss.hit-dt);boss.guardNotice=Math.max(0,(boss.guardNotice||0)-dt);boss.darkModeTimer=Math.max(0,(boss.darkModeTimer||0)-dt);boss.darkModeDwell=Math.max(0,(boss.darkModeDwell||0)-dt);boss.mobilityCooldown=Math.max(0,(boss.mobilityCooldown||0)-dt);boss.cooldown-=dt;
     if(boss.state==='cutin'){
       boss.cutinTimer=Math.max(0,(boss.cutinTimer||0)-dt);boss.vx=0;boss.vy=0;player.invincible=Math.max(player.invincible,boss.cutinTimer+.18);
       if(boss.cutinTimer<=0){hideUltimateCutin();boss.state='telegraph';boss.timer=0;boss.attackFired=false;boss.attackStep=0;sound('bossUltimate');}
@@ -2099,11 +2399,14 @@
       boss.vx*=Math.pow(.02,dt);if(boss.timer>=boss.recovery){boss.state=bossMoveState();boss.timer=0;boss.attackName=null;}
     }else{
       const dx=(player.x+player.w/2)-(boss.x+boss.w/2),distance=Math.abs(dx),direction=Math.sign(dx)||1;
-      const preferred=boss.type==='shark'?470:boss.type==='gorilla'?430:boss.type==='darkFeni'?350:390;
-      const darkSpeed=boss.darkMode==='brokenLcd'?265:boss.darkMode==='darkMuscle'?155:boss.darkMode==='board'?205:145;
+      const preferred=boss.type==='shark'?470:boss.type==='gorilla'?430:boss.type==='darkFeni'?315:390;
+      const darkSpeed=boss.darkMode==='brokenLcd'?390:boss.darkMode==='darkMuscle'?285:boss.darkMode==='board'?350:320;
       const speed=(boss.type==='shark'?145:boss.type==='gorilla'?112:boss.type==='darkFeni'?darkSpeed:100)+(boss.phase-1)*(boss.type==='shark'?27:boss.type==='gorilla'?24:22);
-      let desired=distance>preferred+95?direction*speed:distance<preferred*.58?-direction*speed*.62:0;
-      boss.vx+=(desired-boss.vx)*Math.min(1,dt*2.8);
+      let desired=distance>preferred+95?direction*speed:distance<preferred*.7?-direction*speed*.78:0;
+      boss.vx+=(desired-boss.vx)*Math.min(1,dt*(boss.type==='darkFeni'?6.2:2.8));
+      if(boss.type==='darkFeni'&&boss.grounded&&boss.mobilityCooldown<=0&&distance>230){
+        boss.vy=distance<430?-690:-570;boss.vx=direction*(distance<430?480:310);boss.grounded=false;boss.mobilityCooldown=2.4+(boss.attackIndex%3)*.35;sound('darkJump');
+      }
       if(boss.type==='shark'||(boss.type==='darkFeni'&&boss.darkMode==='board')){const targetY=Math.max(105,Math.min(WORLD_HEIGHT-boss.h-75,player.y+player.h/2-boss.h/2));boss.y+=(targetY-boss.y)*Math.min(1,dt*(boss.type==='darkFeni'?3.4:1.7));}
       if(boss.specialReady)beginBossAttack(bossUltimateAttackName());
       else if(boss.cooldown<=0&&distance<Math.min(1450,viewportWidth*1.4))beginBossAttack(chooseBossAttack());
@@ -2360,7 +2663,7 @@
       if(p.gravity)p.vy+=p.gravity*dt;p.x+=p.vx*dt;p.y+=p.vy*dt;if(p.phase!==undefined)p.phase+=dt*7;const box={x:p.x-p.w/2,y:p.y-p.h/2,w:p.w,h:p.h};
       if(counterAttackCancels(box)){p.dead=true;continue;}
       if(overlap(playerDamageBox(),box)){p.dead=true;if(playerMode!=='king')hurt(p.x);}
-      if(projectileHitsTerrain(box))p.dead=true;
+      if(!p.ignoreTerrain&&projectileHitsTerrain(box))p.dead=true;
       if(p.life<=0||projectileTravel(p)>=p.maxDistance||projectileOutsideView(box)||p.x<-140||p.x>WORLD_WIDTH+140||p.y<-140||p.y>WORLD_HEIGHT+140)p.dead=true;}
     projectiles=projectiles.filter((p)=>!p.dead);
     for(const wing of wingShots){
@@ -2532,9 +2835,9 @@
       sound('checkpoint');
       for (let i = 0; i < effectCount(28,14); i += 1) sparks.push({ x: checkpoint.x + 35, y: checkpoint.y + 20, vx: (Math.random() - .5) * 260, vy: (Math.random() - .5) * 260, life: .8, size: 4 });
     }
-    if (boss && bossDefeated && !bossGate.closed) goalUnlocked = true;
-    if (!goalUnlocked && player.x + player.w > goal.x - 20) { player.x=goal.x-player.w-20; player.vx=Math.min(0,player.vx); if(bossIntro>.8)say('GOAL LOCKED\nボスを倒せ！'); }
-    if (player.x + player.w > goal.x && !player.clearTime && goalUnlocked) {
+    if (boss && bossDefeated && !bossGate.closed&&!isDarkStory()) goalUnlocked = true;
+    if (!goalUnlocked && !isDarkStory() && player.x + player.w > goal.x - 20) { player.x=goal.x-player.w-20; player.vx=Math.min(0,player.vx); if(bossIntro>.8)say('GOAL LOCKED\nボスを倒せ！'); }
+    if (!isDarkStory() && player.x + player.w > goal.x && !player.clearTime && goalUnlocked) {
       player.clearTime = .001;player.clearMode=playerMode; player.vx = 0; player.score += Math.ceil(remainingTime) * 25; sound('goal');
       if(window.RepairHeroSound?.transition)window.RepairHeroSound.transition('goal',.28);else window.RepairHeroSound?.music('goal');
       say(`STAGE CLEAR!!\n${GOAL_LINES[playerMode]||GOAL_LINES.normal}`,'goal',playerMode);
@@ -2564,18 +2867,22 @@
     if(hitStop>0){hitStop=Math.max(0,hitStop-dt);return;}
     if (slowMotion > 0) { slowMotion = Math.max(0, slowMotion - dt); dt *= .25; }
     elapsed += dt;
-    if(endRoll?.active){updateEndRoll(dt);return;}
-    if(finaleOpening?.active){updateFinaleOpening(dt);shake*=Math.pow(.02,dt);return;}
     if(bonusStage?.active){updateBonusStage(dt);shake*=Math.pow(.02,dt);landingShake*=Math.pow(.01,dt);return;}
-    if(bossIntro)bossIntro+=dt;
-    updateModeTimer(dt);
-    remainingTime = Math.max(0, remainingTime - dt);
-    if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
-    if(player.dead&&player.respawnTimer>0){player.respawnTimer=Math.max(0,player.respawnTimer-dt);if(player.respawnTimer<=0)respawnAtCheckpoint(player.respawnMessage||'REPAIR RESTART!');}
-    preloadNearbyAssets();
-    updateObjects(dt);
-    if(bonusStage?.active)return;
-    if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
+    const storyLocked=updateDarkStory(dt);
+    if(mode!=='playing')return;
+    if(!storyLocked){
+      if(bossIntro)bossIntro+=dt;
+      updateModeTimer(dt);
+      if(!isDarkStory())remainingTime = Math.max(0, remainingTime - dt);
+      if (remainingTime <= 0) { player.hp = 0; setModeResult(false); return; }
+      if(player.dead&&player.respawnTimer>0){player.respawnTimer=Math.max(0,player.respawnTimer-dt);if(player.respawnTimer<=0)respawnAtCheckpoint(player.respawnMessage||'REPAIR RESTART!');}
+      preloadNearbyAssets();
+      updateObjects(dt);
+      if(bonusStage?.active)return;
+      if (!player.clearTime) { updatePlayer(dt); updateEnemies(dt); }
+    }else{
+      player.attackTime=0;player.wingAttackTime=0;player.specialTime=0;player.vx*=Math.pow(.002,dt);player.invincible=Math.max(player.invincible,.25);
+    }
     // Frame both fighters in the boss arena. The zoom is eased and changes the
     // real world viewport/camera range rather than scaling the DOM canvas.
     let targetScale = baseScale;
@@ -2584,6 +2891,8 @@
       targetScale = Math.min(baseScale,width/Math.max(width/baseScale,combatSpan));
       targetScale = Math.max(Math.min(baseScale,portrait ? 0.46 : 0.50),targetScale);
     }
+    if(isDarkStory()&&darkStory.state===DARK_STORY_STATE.ESCAPE)targetScale=baseScale*.78;
+    if(isDarkStory()&&[DARK_STORY_STATE.PRE_BATTLE_DIALOGUE,DARK_STORY_STATE.BATTLE_INTRO].includes(darkStory.state)&&darkStory.focus==='scar')targetScale=baseScale*1.18;
     scale += (targetScale-scale)*Math.min(1,dt*4.5);
     viewportWidth=width/scale; viewportHeight=height/scale;
     const fast = Math.abs(player.vx) > 360 || playerMode === 'lcd';
@@ -2592,6 +2901,10 @@
     const anchor = player.facing > 0 ? .24 : .76;
     let focusX = player.x + lead - viewportWidth*anchor;
     if (boss?.alive && boss.intro) focusX=(player.x+player.w/2+boss.x+boss.w/2)/2-viewportWidth/2;
+    if(isDarkStory()&&darkStory.focus==='boss'&&boss)focusX=boss.x+boss.w/2-viewportWidth*.54;
+    if(isDarkStory()&&darkStory.focus==='scar'&&boss)focusX=boss.x+boss.w/2-viewportWidth*.5;
+    if(isDarkStory()&&darkStory.focus==='player')focusX=player.x+player.w/2-viewportWidth*.5;
+    if(isDarkStory()&&darkStory.state===DARK_STORY_STATE.ESCAPE)focusX=player.x-viewportWidth*.26;
     let targetCamera = Math.max(0, Math.min(Math.max(0,WORLD_WIDTH - viewportWidth), focusX));
     if(chaserWall)targetCamera=Math.max(targetCamera,Math.min(WORLD_WIDTH-viewportWidth,chaserWall.x+chaserWall.w-viewportWidth*.06));
     cameraX += (targetCamera - cameraX) * Math.min(1, dt * (playerMode === 'lcd' ? 10 : 7));
@@ -2852,12 +3165,41 @@
     }
   }
 
+  function drawDarkHeartPickups(){
+    if(!isDarkStory()||![DARK_STORY_STATE.HEART_AREA,DARK_STORY_STATE.PRE_BATTLE_DIALOGUE,DARK_STORY_STATE.BATTLE_INTRO,DARK_STORY_STATE.BATTLE].includes(darkStory.state))return;
+    for(const heart of darkStory.hearts){if(heart.collected||!visibleInCamera({x:heart.x-70,y:heart.y-90,w:140,h:170},90))continue;const pulse=1+Math.sin(heart.phase)*.09;
+      ctx.save();ctx.translate(heart.x,heart.y+Math.sin(heart.phase*.8)*9);ctx.scale(pulse,pulse);ctx.globalCompositeOperation='screen';ctx.shadowColor='#ff1717';ctx.shadowBlur=32;
+      const glow=ctx.createRadialGradient(0,0,3,0,0,48);glow.addColorStop(0,'#fff7c8');glow.addColorStop(.22,'#ff2a25');glow.addColorStop(.7,'#8c0014aa');glow.addColorStop(1,'#20000900');ctx.fillStyle=glow;ctx.beginPath();ctx.arc(0,0,50,0,7);ctx.fill();
+      ctx.fillStyle='#ff2026';ctx.beginPath();ctx.moveTo(0,31);ctx.bezierCurveTo(-11,17,-34,2,-27,-16);ctx.bezierCurveTo(-21,-31,-5,-29,0,-17);ctx.bezierCurveTo(7,-30,24,-30,29,-15);ctx.bezierCurveTo(35,3,11,20,0,31);ctx.fill();
+      ctx.fillStyle='#ffb12b';for(let flame=0;flame<5;flame++){const x=-22+flame*11,y=-27-Math.sin(heart.phase*1.7+flame)*9;ctx.beginPath();ctx.moveTo(x+8,y+20);ctx.quadraticCurveTo(x-3,y-4-Math.sin(heart.phase+flame)*8,x+5,y-19);ctx.quadraticCurveTo(x+18,y-2,x+8,y+20);ctx.fill();}
+      ctx.fillStyle='#ff7150';for(let spark=0;spark<5;spark++){const a=heart.phase+spark*1.3,r=42+spark*8;ctx.beginPath();ctx.arc(Math.cos(a)*r,Math.sin(a)*r-18,2+spark%2,0,7);ctx.fill();}ctx.restore();
+    }
+    for(const absorb of darkStory.absorbs){ctx.save();ctx.globalCompositeOperation='screen';ctx.globalAlpha=Math.min(1,absorb.life*4);ctx.fillStyle='#fff0b5';ctx.shadowColor='#ff203f';ctx.shadowBlur=24;ctx.beginPath();ctx.arc(absorb.x,absorb.y,7+absorb.life*10,0,7);ctx.fill();ctx.strokeStyle='#ff334f';ctx.lineWidth=5;ctx.beginPath();ctx.moveTo(absorb.x,absorb.y);ctx.lineTo(absorb.x-(player.x+player.w/2-absorb.x)*.22,absorb.y-(player.y+player.h/2-absorb.y)*.22);ctx.stroke();ctx.restore();}
+  }
+
+  function drawDarkStoryWorldFx(){
+    if(!isDarkStory())return;
+    if(darkStory.state===DARK_STORY_STATE.COLLAPSE_CUTSCENE){const c=darkStory.collapse,intensity=c.intensity;
+      ctx.save();ctx.globalCompositeOperation='screen';ctx.strokeStyle='#a92bff';ctx.shadowColor='#ff234f';ctx.shadowBlur=18;ctx.lineWidth=3+intensity*7;
+      for(let crack=0;crack<9;crack++){const x=boss.arenaLeft+180+crack*360,y=120+(crack%3)*90;ctx.globalAlpha=.16+intensity*.64;ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x+55,y+95);ctx.lineTo(x+15,y+180);ctx.lineTo(x+98,y+265);ctx.stroke();}
+      if(!c.bossGone){const rise=c.consume*boss.h;ctx.globalCompositeOperation='source-over';const darkness=ctx.createLinearGradient(0,boss.y+boss.h,0,boss.y);darkness.addColorStop(0,'#020005');darkness.addColorStop(Math.min(.98,c.consume),'#170020ee');darkness.addColorStop(1,'#33004b00');ctx.fillStyle=darkness;ctx.fillRect(boss.x-50,boss.y+boss.h-rise,boss.w+100,rise+30);
+        ctx.fillStyle='#7220a8';for(let particle=0;particle<effectCount(16,8);particle++){const a=particle*2.2+elapsed*1.8,r=20+(particle%6)*11;ctx.globalAlpha=.25+.5*(particle%3)/2;ctx.beginPath();ctx.arc(boss.x+boss.w/2+Math.cos(a)*r,boss.y+boss.h-rise+Math.sin(a)*26,2+particle%4,0,7);ctx.fill();}}
+      ctx.restore();
+    }
+    if(darkStory.state===DARK_STORY_STATE.ESCAPE){const escape=darkStory.escape;
+      ctx.save();const wall=ctx.createLinearGradient(escape.wallX-250,0,escape.wallX+210,0);wall.addColorStop(0,'#000');wall.addColorStop(.55,'#09000f');wall.addColorStop(1,'#6e0c9400');ctx.fillStyle=wall;ctx.fillRect(escape.wallX-1200,cameraY-300,1410,viewportHeight+600);
+      ctx.strokeStyle='#d834ff';ctx.shadowColor='#ff284f';ctx.shadowBlur=30;ctx.lineWidth=8;ctx.globalAlpha=.5+.25*Math.sin(elapsed*11);ctx.beginPath();ctx.moveTo(escape.wallX+180,cameraY-100);for(let y=cameraY-80;y<cameraY+viewportHeight+100;y+=65)ctx.lineTo(escape.wallX+175+Math.sin(y*.05+elapsed*8)*35,y);ctx.stroke();
+      ctx.globalAlpha=1;for(const rock of escape.debris){ctx.save();ctx.translate(rock.x,rock.y);ctx.rotate(rock.angle);ctx.fillStyle='#1b1322';ctx.strokeStyle='#b832ff';ctx.lineWidth=3;ctx.fillRect(-rock.w/2,-rock.h/2,rock.w,rock.h);ctx.strokeRect(-rock.w/2,-rock.h/2,rock.w,rock.h);ctx.restore();}ctx.restore();
+    }
+  }
+
   function drawWorld() {
     ctx.save(); ctx.translate(-cameraX, -cameraY);
     drawChaserWall();
     // Scenery is background art. Draw collision geometry and warnings after it
     // so shops, caves and wrecks can never hide spikes or warning markers.
     drawScenery();
+    drawDarkStoryWorldFx();
     drawClimbVines();
     for (const platform of staticPlatforms) drawPlatform(platform);
     for (const platform of movingPlatforms) drawPlatform(platform, 'moving');
@@ -2868,6 +3210,7 @@
     drawHazards();
     coins.forEach(drawCoin);
     items.forEach(drawItem);
+    drawDarkHeartPickups();
     transformItems.forEach(drawTransformItem);
     checkpoints.forEach(drawCheckpoint);
     breakables.forEach(w=>{if(!w.alive||!visibleInCamera(w,90))return;ctx.fillStyle='#8b5737';ctx.fillRect(w.x,w.y,w.w,w.h);ctx.strokeStyle='#ffd335';ctx.lineWidth=4;ctx.strokeRect(w.x,w.y,w.w,w.h);ctx.fillStyle='#fff';ctx.font='bold 12px Arial';ctx.fillText('BREAK',w.x+5,w.y+42);});
@@ -2884,6 +3227,7 @@
       if(p.kind==='torpedo'){ctx.fillStyle='#8defff';ctx.strokeStyle='#eaffff';ctx.shadowColor='#45dfff';ctx.beginPath();ctx.ellipse(0,0,p.w*.62,p.h*.55,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#ff5b24';ctx.beginPath();ctx.moveTo(-p.w*.5,0);ctx.lineTo(-p.w*.95,-p.h*.55);ctx.lineTo(-p.w*.95,p.h*.55);ctx.closePath();ctx.fill();ctx.fillStyle='#d9ffff';for(let trail=1;trail<=3;trail++){ctx.globalAlpha=.8-trail*.18;ctx.beginPath();ctx.arc(-p.w*(.9+trail*.55),0,3+trail*2,0,7);ctx.fill();}}
       else if(p.kind==='darkFeather'){ctx.shadowColor='#ce3cff';ctx.shadowBlur=28;ctx.fillStyle='#edc4ff';ctx.strokeStyle='#7d1bb0';ctx.beginPath();ctx.moveTo(p.w*.68,0);ctx.quadraticCurveTo(0,-p.h,-p.w*.7,-p.h*.45);ctx.quadraticCurveTo(-p.w*.3,0,-p.w*.75,p.h*.5);ctx.quadraticCurveTo(0,p.h*.75,p.w*.68,0);ctx.fill();ctx.stroke();ctx.strokeStyle='#ff4da8';ctx.beginPath();ctx.moveTo(-p.w*.55,0);ctx.lineTo(-p.w*1.45,0);ctx.stroke();}
       else if(p.kind==='darkChaos'){ctx.rotate((p.phase||0)*.35);ctx.shadowColor='#d425ff';ctx.shadowBlur=34;const core=ctx.createRadialGradient(0,0,2,0,0,p.w*.72);core.addColorStop(0,'#fff');core.addColorStop(.25,'#ff365c');core.addColorStop(.65,'#5e158f');core.addColorStop(1,'#05000d');ctx.fillStyle=core;ctx.beginPath();ctx.arc(0,0,p.w*.62,0,Math.PI*2);ctx.fill();ctx.strokeStyle='#f07cff';ctx.lineWidth=4;for(let arc=0;arc<3;arc++){ctx.beginPath();ctx.arc(0,0,p.w*(.72+arc*.18),arc*.8,arc*.8+Math.PI*1.15);ctx.stroke();}ctx.fillStyle='#ff2d4e';for(let ember=0;ember<5;ember++){const angle=ember*Math.PI*2/5+(p.phase||0);ctx.beginPath();ctx.arc(Math.cos(angle)*p.w*.92,Math.sin(angle)*p.w*.92,3,0,7);ctx.fill();}}
+      else if(p.kind==='darkFlame'){ctx.rotate(-Math.atan2(p.vy,p.vx));ctx.shadowColor='#9f25ff';ctx.shadowBlur=34;const flame=ctx.createLinearGradient(0,p.h*.55,0,-p.h*.55);flame.addColorStop(0,'#130018');flame.addColorStop(.42,'#7516a9');flame.addColorStop(.78,'#ff244c');flame.addColorStop(1,'#ffb04c00');ctx.fillStyle=flame;for(let tongue=0;tongue<4;tongue++){const x=(tongue-1.5)*p.w*.18;ctx.beginPath();ctx.moveTo(x-p.w*.18,p.h*.5);ctx.quadraticCurveTo(x-p.w*.28,-p.h*.08,x,-p.h*(.35+.12*(tongue%2)));ctx.quadraticCurveTo(x+p.w*.24,-p.h*.02,x+p.w*.18,p.h*.5);ctx.fill();}}
       else if(p.kind==='darkSlash'){ctx.globalCompositeOperation='screen';ctx.shadowColor='#b522ff';ctx.shadowBlur=36;ctx.strokeStyle='#6a10b8';ctx.lineWidth=22;ctx.beginPath();ctx.moveTo(-p.w*.8,-p.h*.7);ctx.lineTo(p.w*.8,p.h*.7);ctx.stroke();ctx.strokeStyle='#ff254f';ctx.lineWidth=11;ctx.beginPath();ctx.moveTo(-p.w*.72,-p.h*.62);ctx.lineTo(p.w*.72,p.h*.62);ctx.stroke();ctx.strokeStyle='#fff0ff';ctx.lineWidth=4;ctx.stroke();}
       else if(p.kind==='darkLightning'||p.kind==='overload'){ctx.shadowColor='#b64dff';ctx.shadowBlur=30;ctx.strokeStyle='#f2e6ff';ctx.lineWidth=7;ctx.beginPath();ctx.moveTo(-p.w*.55,-p.h*.42);ctx.lineTo(-4,-3);ctx.lineTo(-8,p.h*.4);ctx.lineTo(p.w*.62,0);ctx.stroke();ctx.strokeStyle='#8f35ff';ctx.lineWidth=3;ctx.stroke();}
       else if(p.kind==='earthChunk'){ctx.shadowColor='#ff542b';ctx.shadowBlur=18;ctx.fillStyle='#57362e';ctx.strokeStyle='#ff9b48';ctx.lineWidth=4;ctx.beginPath();for(let point=0;point<10;point++){const angle=point*Math.PI/5,radius=point%2?p.w*.34:p.w*.55;ctx.lineTo(Math.cos(angle)*radius,Math.sin(angle)*radius*.8);}ctx.closePath();ctx.fill();ctx.stroke();}
@@ -2960,6 +3304,16 @@
     if(!visibleInCamera(clone,160))return;ctx.save();ctx.translate(clone.x+clone.w/2,clone.y+clone.h/2);if(clone.vx>0)ctx.scale(-1,1);ctx.globalCompositeOperation='screen';ctx.globalAlpha=.5+.2*Math.sin(elapsed*8+clone.phase);drawDarkFeniAvatar('board','wingFire',.72,192);ctx.strokeStyle='#c44fff';ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(0,0,58,82,0,0,Math.PI*2);ctx.stroke();ctx.restore();
   }
 
+  function drawDarkFeniSword(pointing=false,attack=false){
+    ctx.save();ctx.translate(pointing?18:34,pointing?-4:14);ctx.rotate(pointing?-.08:attack?-.72:-.48);ctx.globalCompositeOperation='screen';
+    ctx.shadowColor='#b522ff';ctx.shadowBlur=reducedEffects?18:34;const blade=ctx.createLinearGradient(0,-112,0,22);blade.addColorStop(0,'#ff3159');blade.addColorStop(.28,'#55117e');blade.addColorStop(.72,'#110016');blade.addColorStop(1,'#000');
+    ctx.fillStyle=blade;ctx.strokeStyle='#f04483';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(0,-128);ctx.lineTo(12,-97);ctx.lineTo(9,18);ctx.lineTo(-9,18);ctx.lineTo(-12,-97);ctx.closePath();ctx.fill();ctx.stroke();
+    ctx.fillStyle='#23002f';ctx.strokeStyle='#ff3159';ctx.lineWidth=4;ctx.fillRect(-30,15,60,9);ctx.strokeRect(-30,15,60,9);ctx.fillStyle='#08000d';ctx.fillRect(-7,24,14,45);
+    ctx.strokeStyle='#df55ff';ctx.lineWidth=3;for(let bolt=0;bolt<3;bolt++){const y=-88+bolt*28;ctx.beginPath();ctx.moveTo(-9,y);ctx.lineTo(7,y+9);ctx.lineTo(-5,y+18);ctx.stroke();}
+    ctx.fillStyle='#0a0010';for(let particle=0;particle<6;particle++){const angle=elapsed*2+particle*1.7,r=22+particle*7;ctx.beginPath();ctx.arc(Math.cos(angle)*r,-40+Math.sin(angle)*r,2+particle%3,0,7);ctx.fill();}
+    ctx.restore();
+  }
+
   function drawBoss(){
     ctx.save();ctx.translate(boss.x+boss.w/2,boss.y+boss.h/2);ctx.shadowColor=boss.hit?'#fff':'#ff352d';ctx.shadowBlur=35;
     if(boss.state==='intro'){const introProgress=1-boss.introLock/(boss.introDuration||BOSS_INTRO_DURATION);ctx.globalAlpha=.45+.55*introProgress;ctx.scale(.78+.22*introProgress,.78+.22*introProgress);}
@@ -2969,8 +3323,16 @@
     if(boss.state==='attack'&&['charge','bite','breach','apeCharge'].includes(boss.attackName))ctx.scale(1.13,.9);
     if(boss.state==='recovery'){ctx.rotate(Math.sin(elapsed*5)*.025);ctx.scale(1,.94);}
     if(boss.type==='darkFeni'){
-      if(boss.vx>0)ctx.scale(-1,1);const frame=boss.state==='telegraph'?'alert':boss.state==='attack'?(boss.attackName==='earthRend'||boss.attackName==='darkRush'?'doubleJump':'wingFire'):boss.state==='recovery'?'land':Math.floor(elapsed*7)%2?'step1':'step2';
-      drawDarkFeniAvatar(boss.darkMode,frame,boss.hit ? .68+.28*Math.sin(elapsed*45) : 1,232);
+      const storyPose=isDarkStory()?darkStory.bossPose:null,consume=isDarkStory()&&darkStory.state===DARK_STORY_STATE.COLLAPSE_CUTSCENE?darkStory.collapse.consume:0;
+      if(boss.vx>0||(!boss.vx&&player.x>boss.x))ctx.scale(-1,1);
+      if(storyPose==='kneel'||storyPose==='gentle'||storyPose==='accept'){ctx.translate(0,27);ctx.scale(1,.76);}
+      if(storyPose==='hairLift'){const lift=darkStory.intro.hairLift;ctx.translate(0,-lift*10);ctx.rotate(-.025*lift);}
+      const frame=boss.state==='telegraph'?'alert':boss.state==='attack'?(boss.attackName==='earthRend'||boss.attackName==='darkRush'||boss.attackName==='darkDive'?'doubleJump':'wingFire'):boss.state==='recovery'?'land':storyPose==='hairLift'?'doubleJump':storyPose==='kneel'||storyPose==='gentle'||storyPose==='accept'?'land':Math.floor(elapsed*7)%2?'step1':'step2';
+      ctx.globalAlpha*=Math.max(0,1-consume*.92);
+      if(!boss.hidden&&(!isDarkStory()||darkStory.bossVisible))drawDarkFeniAvatar(boss.darkMode,frame,boss.hit ? .68+.28*Math.sin(elapsed*45) : 1,232);
+      if(storyPose==='hairLift'&&!boss.hidden){ctx.save();ctx.globalCompositeOperation='screen';ctx.strokeStyle='#edb5ff';ctx.shadowColor='#c52cff';ctx.shadowBlur=18;ctx.lineWidth=12;ctx.beginPath();ctx.moveTo(-5,-18);ctx.quadraticCurveTo(-40,-58,-26,-92);ctx.stroke();ctx.restore();}
+      const swordReady=isDarkStory()?(darkStory.state===DARK_STORY_STATE.BATTLE||darkStory.state===DARK_STORY_STATE.BOSS_DEFEATED||darkStory.state===DARK_STORY_STATE.POST_BATTLE_DIALOGUE||darkStory.state===DARK_STORY_STATE.COLLAPSE_CUTSCENE||darkStory.intro.swordSummoned):boss.intro;
+      if(swordReady&&!boss.hidden&&(!isDarkStory()||darkStory.bossVisible))drawDarkFeniSword(isDarkStory()&&darkStory.state===DARK_STORY_STATE.BATTLE_INTRO&&darkStory.intro.swordPointing,boss.state==='attack');
     }else if(boss.type==='shark'&&enemyImages.mechaShark.complete&&enemyImages.mechaShark.naturalWidth){
       if(boss.vx>0)ctx.scale(-1,1);const spriteW=boss.w*1.34,spriteH=boss.h*1.48;
       if(boss.phase>=2&&!reducedEffects)ctx.filter=boss.phase===3?'saturate(1.9) contrast(1.25) hue-rotate(-25deg)':'saturate(1.55) contrast(1.15) hue-rotate(-12deg)';
@@ -2993,10 +3355,12 @@
       ctx.fillStyle='#ffdb32';ctx.font='bold 30px Arial';ctx.textAlign='center';ctx.fillText('MEGA BUG',0,104);
     }
     ctx.restore();
-    if(boss.type==='darkFeni'){ctx.save();ctx.fillStyle='#f2b6ff';ctx.shadowColor='#b42cff';ctx.shadowBlur=15;ctx.font='900 13px Arial';ctx.textAlign='center';ctx.fillText(DARK_MODE_LABELS[boss.darkMode]||'DARK MODE',boss.x+boss.w/2,boss.y-46);ctx.restore();}
+    if(boss.type==='darkFeni'&&(!isDarkStory()||darkStory.state===DARK_STORY_STATE.BATTLE)){ctx.save();ctx.fillStyle='#f2b6ff';ctx.shadowColor='#b42cff';ctx.shadowBlur=15;ctx.font='900 13px Arial';ctx.textAlign='center';ctx.fillText(DARK_MODE_LABELS[boss.darkMode]||'DARK MODE',boss.x+boss.w/2,boss.y-46);ctx.restore();}
     if(boss.state==='telegraph'&&boss.usingSpecial){ctx.save();ctx.fillStyle='#fff36b';ctx.shadowColor='#ff35c9';ctx.shadowBlur=22;ctx.font='900 18px Arial';ctx.textAlign='center';ctx.fillText(`必殺技：${bossUltimateLabel()}`,boss.x+boss.w/2,boss.y-70);ctx.restore();}
-    if(boss.state==='telegraph'&&['dive','jump','slam','groundPound'].includes(boss.attackName)){ctx.save();ctx.globalAlpha=.55+.4*Math.sin(elapsed*22);ctx.strokeStyle='#fff238';ctx.fillStyle='#ff3428aa';ctx.lineWidth=7;ctx.beginPath();ctx.ellipse(boss.targetX,boss.targetY+player.h/2,78,22,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 28px Arial';ctx.textAlign='center';ctx.fillText('!',boss.targetX,boss.targetY+player.h/2-28);ctx.restore();}
-    ctx.fillStyle='#180c22';ctx.fillRect(boss.x,boss.y-28,boss.w,14);ctx.fillStyle='#ff493e';ctx.fillRect(boss.x,boss.y-28,boss.w*(boss.hp/boss.maxHp),14);
+    if(boss.state==='telegraph'&&['dive','jump','slam','groundPound','darkDive'].includes(boss.attackName)){ctx.save();ctx.globalAlpha=.55+.4*Math.sin(elapsed*22);ctx.strokeStyle='#fff238';ctx.fillStyle='#ff3428aa';ctx.lineWidth=7;ctx.beginPath();ctx.ellipse(boss.targetX,boss.targetY+player.h/2,78,22,0,0,7);ctx.fill();ctx.stroke();ctx.fillStyle='#fff';ctx.font='bold 28px Arial';ctx.textAlign='center';ctx.fillText('!',boss.targetX,boss.targetY+player.h/2-28);ctx.restore();}
+    if(boss.state==='telegraph'&&boss.attackName==='darkFlameRift'){ctx.save();ctx.globalAlpha=.48+.4*Math.sin(elapsed*18);ctx.fillStyle='#8f1fd066';ctx.strokeStyle='#ff3b5f';ctx.lineWidth=5;for(const targetX of boss.riftTargets||[]){ctx.beginPath();ctx.ellipse(targetX,FLOOR_Y-8,56,18,0,0,7);ctx.fill();ctx.stroke();}ctx.restore();}
+    if(boss.type==='darkFeni'&&boss.state==='telegraph'&&!boss.usingSpecial){const attackLabels={darkHighSpeedSlash:'暗黒高速斬',darkSlashWave:'暗黒斬撃波',darkFlameRift:'闇炎裂斬',darkDive:'暗黒急降下',darkRush:'ダークフェニ・ラッシュ',darkFeather:'黒翼散弾'};ctx.save();ctx.fillStyle='#ffe7ff';ctx.shadowColor='#c126ff';ctx.shadowBlur=18;ctx.font='900 17px Arial';ctx.textAlign='center';ctx.fillText(attackLabels[boss.attackName]||'DARK ATTACK',boss.x+boss.w/2,boss.y-72);ctx.restore();}
+    if(!isDarkStory()||darkStory.state===DARK_STORY_STATE.BATTLE){ctx.fillStyle='#180c22';ctx.fillRect(boss.x,boss.y-28,boss.w,14);ctx.fillStyle='#ff493e';ctx.fillRect(boss.x,boss.y-28,boss.w*(boss.hp/boss.maxHp),14);}
   }
 
   function drawPlatform(platform, kind = 'safe') {
@@ -3469,28 +3833,27 @@
   }
 
   function drawFinaleOverlay() {
-    if(finaleOpening?.active){
-      const t=finaleOpening.timer;ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.fillStyle='#000';ctx.globalAlpha=t<1.72?1:Math.max(0,.92-(t-1.72)*.48);ctx.fillRect(0,0,width,height);ctx.globalAlpha=1;
-      if(t<1.08){
-        const pulse=.82+.18*Math.sin(t*35);ctx.fillStyle='#ff173f';ctx.shadowColor='#ff1644';ctx.shadowBlur=32;ctx.textAlign='center';ctx.font=`italic 1000 ${Math.max(48,Math.min(148,width*.14))}px Arial`;for(const offset of[-7,0,6]){ctx.globalAlpha=offset?0.28:pulse;ctx.fillText('IRREGULAR!!',width/2+offset*Math.sin(t*43),height/2+offset);}ctx.globalAlpha=.5;ctx.fillStyle='#fff';for(let line=0;line<14;line++){const y=(line*83+t*980)%height;ctx.fillRect(0,y,width,1+line%3);}ctx.globalAlpha=1;
-      }else if(t>=1.72){
-        const reveal=Math.min(1,(t-1.72)/.7);ctx.globalAlpha=reveal;ctx.fillStyle='#e7b9ff';ctx.shadowColor='#b42eff';ctx.shadowBlur=26;ctx.textAlign='center';ctx.font=`900 ${Math.max(30,Math.min(68,width*.065))}px Arial`;ctx.fillText('FINAL STAGE',width/2,height*.44);ctx.font=`900 ${Math.max(18,Math.min(34,width*.032))}px Arial`;ctx.fillStyle='#ff476f';ctx.fillText('終焉回路 // BEGINNING OF THE END',width/2,height*.54);
-      }
-      ctx.restore();
+    if(!isDarkStory())return;const state=darkStory.state,t=darkStory.timer;ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);
+    if(state===DARK_STORY_STATE.INTRO){ctx.fillStyle='#000';ctx.fillRect(0,0,width,height);}
+    if(state===DARK_STORY_STATE.PRE_BATTLE_DIALOGUE||state===DARK_STORY_STATE.POST_BATTLE_DIALOGUE){
+      const vignette=ctx.createRadialGradient(width*.5,height*.5,Math.min(width,height)*.2,width*.5,height*.5,Math.max(width,height)*.7);vignette.addColorStop(0,'#00000008');vignette.addColorStop(1,'#030006b8');ctx.fillStyle=vignette;ctx.fillRect(0,0,width,height);
     }
-    if(darkBossReveal?.active){
-      const t=darkBossReveal.timer;ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);const black=t<.62?1:Math.max(.22,1-(t-.62)*.46);ctx.globalAlpha=black;ctx.fillStyle='#000';ctx.fillRect(0,0,width,height);ctx.globalAlpha=Math.min(1,Math.max(0,(t-.48)*2.7))*Math.min(1,Math.max(.18,(3.25-t)*1.3));
-      if(t>.48){ctx.translate(width/2,height*.5);ctx.scale(1+Math.sin(t*7)*.018,1-Math.sin(t*7)*.018);drawDarkFeniAvatar('normal','alert',1,Math.min(width,height)*.58);ctx.fillStyle='#f0bdff';ctx.shadowColor='#c231ff';ctx.shadowBlur=24;ctx.textAlign='center';ctx.font=`900 ${Math.max(17,Math.min(34,width*.035))}px Arial`;ctx.fillText('DARK FENI-CHAN',0,Math.min(width,height)*.34);}
-      ctx.restore();
+    if(state===DARK_STORY_STATE.BATTLE_INTRO){
+      const intro=darkStory.intro;ctx.fillStyle='#020006';ctx.globalAlpha=.12+intro.scarReveal*.38;ctx.fillRect(0,0,width,height);ctx.globalAlpha=1;
+      if(t>2.05&&t<3.55){const reveal=Math.min(1,(t-2.05)*2.2)*Math.min(1,(3.55-t)*2.4);ctx.globalAlpha=reveal;ctx.fillStyle='#000';ctx.fillRect(0,0,width,height);ctx.translate(width*.5,height*.5);drawDarkFeniAvatar('normal','alert',1,Math.min(width,height)*.72);
+        ctx.globalCompositeOperation='screen';ctx.strokeStyle='#ff315e';ctx.shadowColor='#bd2cff';ctx.shadowBlur=32;ctx.lineWidth=Math.max(4,Math.min(width,height)*.012);ctx.beginPath();ctx.moveTo(-Math.min(width,height)*.095,-Math.min(width,height)*.17);ctx.lineTo(-Math.min(width,height)*.035,-Math.min(width,height)*.08);ctx.lineTo(-Math.min(width,height)*.09,Math.min(width,height)*.015);ctx.stroke();ctx.globalCompositeOperation='source-over';ctx.translate(-width*.5,-height*.5);}
+      if(intro.eyeGlow>0){ctx.globalAlpha=intro.eyeGlow*.28;ctx.fillStyle='#d42cff';ctx.fillRect(0,0,width,height);ctx.globalAlpha=1;}
+      if(t>=4.05&&t<5.35){ctx.globalAlpha=Math.min(1,(t-4.05)*3)*Math.min(1,(5.35-t)*2.5);ctx.fillStyle='#fbe8ff';ctx.shadowColor='#b42cff';ctx.shadowBlur=22;ctx.textAlign='center';ctx.font=`900 ${Math.max(15,Math.min(28,width*.029))}px Arial`;ctx.fillText('暗黒外転ダークフェニソード',width/2,height*.79);ctx.globalAlpha=1;}
+      if(intro.rumble){ctx.globalAlpha=.18;ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);}
     }
-    if(endRoll?.active){
-      const t=endRoll.timer;ctx.save();ctx.setTransform(dpr,0,0,dpr,0,0);ctx.globalAlpha=1;ctx.fillStyle='#020006';ctx.fillRect(0,0,width,height);
-      for(let ember=0;ember<24;ember++){const x=(ember*193+Math.sin(ember*4.7)*70)%Math.max(1,width),y=(height+180-((t*42+ember*97)%(height+300)));ctx.globalAlpha=.18+(ember%4)*.12;ctx.fillStyle=ember%2?'#c63aff':'#ff426f';ctx.fillRect(x,y,2+ember%3,7+ember%5);}
-      const lines=['REPAIR HERO','DARK PHOENIX TRUE END','', '..それがお前の答えか..','', 'FENI-CHAN / REPAIR HERO','DARK FENI-CHAN / IRREGULAR','MECHA BOSS SYSTEM','OSAKA REPAIR WORLDS','', 'THANK YOU FOR PLAYING'];
-      const startY=height+110-t*72;ctx.textAlign='center';for(const [index,line] of lines.entries()){const y=startY+index*72;if(y<-90||y>height+90)continue;ctx.globalAlpha=Math.min(1,Math.max(0,(height-Math.abs(y-height*.5)*1.25)/height));ctx.fillStyle=index===0?'#fff269':index===1?'#d85cff':index===3?'#f0b8ff':'#ecf8ff';ctx.shadowColor=index<2?'#b832ff':'#000';ctx.shadowBlur=index<2?22:6;ctx.font=index===0?`italic 1000 ${Math.max(42,Math.min(92,width*.1))}px Arial`:index===1?`900 ${Math.max(19,Math.min(36,width*.04))}px Arial`:`700 ${Math.max(15,Math.min(25,width*.026))}px Arial`;ctx.fillText(line,width/2,y);}
-      if(t>10.1){ctx.globalAlpha=Math.min(1,(t-10.1)/.8);ctx.fillStyle='#fff';ctx.shadowColor='#ff405f';ctx.shadowBlur=24;ctx.font=`italic 1000 ${Math.max(44,Math.min(100,width*.12))}px Arial`;ctx.fillText('THE END',width/2,height*.54);}
-      ctx.restore();
+    if(state===DARK_STORY_STATE.BOSS_DEFEATED){ctx.fillStyle='#000';ctx.globalAlpha=Math.min(.42,t*.28);ctx.fillRect(0,0,width,height);}
+    if(state===DARK_STORY_STATE.COLLAPSE_CUTSCENE){const c=darkStory.collapse;ctx.fillStyle='#16001f';ctx.globalAlpha=c.intensity*.18;ctx.fillRect(0,0,width,height);ctx.globalAlpha=.18+c.intensity*.5;ctx.strokeStyle='#a735ff';ctx.lineWidth=2+c.intensity*6;for(let line=0;line<8;line++){const x=(line+1)*width/9;ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x+Math.sin(line)*45,height*.34);ctx.lineTo(x-32,height*.62);ctx.lineTo(x+55,height);ctx.stroke();}}
+    if(state===DARK_STORY_STATE.ESCAPE){const danger=Math.max(0,Math.min(1,1-(player.x-darkStory.escape.wallX)/520));const vignette=ctx.createRadialGradient(width*.55,height*.5,Math.min(width,height)*.25,width*.55,height*.5,Math.max(width,height)*.72);vignette.addColorStop(0,'#00000000');vignette.addColorStop(1,`rgba(48,0,65,${.38+danger*.3})`);ctx.fillStyle=vignette;ctx.fillRect(0,0,width,height);ctx.globalAlpha=.7;ctx.fillStyle='#ffeaff';ctx.shadowColor='#c82cff';ctx.shadowBlur=18;ctx.font=`900 ${Math.max(14,Math.min(24,width*.026))}px Arial`;ctx.textAlign='center';ctx.fillText('ESCAPE  →',width*.5,Math.max(38,height*.095));}
+    if(state===DARK_STORY_STATE.ENDING||state===DARK_STORY_STATE.COMPLETE){
+      const black=t<2.1?Math.max(0,(t-1.05)/1.05):1;ctx.globalAlpha=black;ctx.fillStyle='#000';ctx.fillRect(0,0,width,height);
+      if(t>=4.2){const fadeIn=Math.min(1,(t-4.2)/1.8),fadeOut=t>9.25?Math.max(0,1-(t-9.25)/1.65):1;ctx.globalAlpha=fadeIn*fadeOut;ctx.fillStyle='#f2edf7';ctx.shadowColor='#713c8e';ctx.shadowBlur=18;ctx.textAlign='center';ctx.font=`500 ${Math.max(20,Math.min(46,width*.049))}px Georgia,serif`;ctx.fillText('Beyond Light and Darkness…',width/2,height/2);}
     }
+    ctx.restore();
   }
 
   function draw() {
@@ -3523,8 +3886,9 @@
   addEventListener('keydown', (event) => {
     if(event.code==='Escape'&&!ui.tutorial?.classList.contains('hidden')){event.preventDefault();ui.tutorial.classList.add('hidden');return;}
     if(!ui.tutorial?.classList.contains('hidden'))return;
+    if((event.code==='Enter'||event.code==='Space')&&isDarkStory()&&[DARK_STORY_STATE.PRE_BATTLE_DIALOGUE,DARK_STORY_STATE.POST_BATTLE_DIALOGUE].includes(darkStory.state)){event.preventDefault();advanceDarkDialogue();return;}
     if ((event.code === 'Enter' || event.code === 'Space') && (mode === 'title' || mode === 'clear' || mode === 'gameover')) { event.preventDefault(); startGame(); return; }
-    if (event.code === 'Escape' && mode === 'playing') { paused = !paused; return; }
+    if (event.code === 'Escape' && mode === 'playing'&&!darkStoryLocked()) { paused = !paused; return; }
     if (keyMap[event.code]) { event.preventDefault(); input[keyMap[event.code]] = true; }
     if (event.code.startsWith('Shift')) { event.preventDefault(); input[player?.facing < 0 ? 'dashLeft' : 'dashRight'] = true; }
   });
@@ -3546,12 +3910,16 @@
   });
 
   $('#start').addEventListener('click', startGame);
+  ui.darkFeniStart?.addEventListener('click',startDarkFeniRoute);
+  ui.tryDarkFeni?.addEventListener('click',beginDarkExploration);
+  ui.storyTap?.addEventListener('click',(event)=>{event.preventDefault();advanceDarkDialogue();});
+  ui.storyDialogue?.addEventListener('click',(event)=>{if(event.target===ui.storyTap||ui.storyTap?.contains?.(event.target))return;advanceDarkDialogue();});
   ui.tutorialOpen?.addEventListener('click',()=>ui.tutorial?.classList.remove('hidden'));
   ui.tutorialClose?.addEventListener('click',()=>ui.tutorial?.classList.add('hidden'));
   $('#retry').addEventListener('click', startGame);
   $('#next').addEventListener('click', () => { currentStage=Math.min(STAGES.length-1,currentStage+1); startGame(); });
   $('#titleBack').addEventListener('click', showTitle);
-  ui.pause.addEventListener('click', () => { if (mode === 'playing') paused = !paused; });
+  ui.pause.addEventListener('click', () => { if (mode === 'playing'&&!darkStoryLocked()) paused = !paused; });
   addEventListener('resize', resize);
   addEventListener('orientationchange', () => setTimeout(resize, 80));
   window.visualViewport?.addEventListener('resize', resize);
@@ -3577,8 +3945,13 @@
       teleport:(x,y)=>{player.x=Math.max(0,Math.min(WORLD_WIDTH-player.w,x));if(Number.isFinite(y))player.y=y;player.vx=0;player.vy=0;},
       teleportBoss:(x,y)=>{if(boss){boss.x=Math.max(boss.arenaLeft,Math.min(boss.arenaRight-boss.w,x));if(Number.isFinite(y))boss.y=y;boss.vx=0;boss.vy=0;}},
       beginBoss:()=>beginBossEncounter(),
-      skipFinaleOpening:()=>{if(finaleOpening)finaleOpening.active=false;return true;},
-      forceBossSpecial:(darkMode=null)=>{if(!boss)return false;if(darkMode&&boss.type==='darkFeni'&&DARK_MODE_ORDER.includes(darkMode)){boss.darkMode=darkMode;boss.darkModeIndex=DARK_MODE_ORDER.indexOf(darkMode);}boss.intro=true;boss.active=true;boss.state=bossMoveState();boss.introLock=0;boss.cooldown=0;boss.specialGauge=100;boss.specialReady=true;updateBoss(.016);return boss.attackName;},
+      startDarkRoute:()=>startDarkFeniRoute(),
+      tryDarkRoute:()=>beginDarkExploration(),
+      skipFinaleOpening:()=>beginDarkExploration(),
+      advanceStory:()=>advanceDarkDialogue(),
+      collectDarkHearts:(count=DARK_HEART_MAX)=>{if(!darkStory)return 0;for(const heart of darkStory.hearts.filter((entry)=>!entry.collected).slice(0,count)){heart.collected=true;darkStory.heartStock=Math.min(DARK_HEART_MAX,darkStory.heartStock+1);}updateDarkHeartHud(true);return darkStory.heartStock;},
+      forceDarkAttack:(name)=>{if(!boss||boss.type!=='darkFeni'||!['darkHighSpeedSlash','darkSlashWave','darkFlameRift','darkDive','darkRush'].includes(name))return false;player.invincible=99;boss.intro=true;boss.active=true;boss.state=bossMoveState();boss.cooldown=0;beginBossAttack(name);return name;},
+      forceBossSpecial:(darkMode=null)=>{if(!boss)return false;player.invincible=99;if(darkMode&&boss.type==='darkFeni'&&DARK_MODE_ORDER.includes(darkMode)){boss.darkMode=darkMode;boss.darkModeIndex=DARK_MODE_ORDER.indexOf(darkMode);}boss.intro=true;boss.active=true;boss.state=bossMoveState();boss.introLock=0;boss.cooldown=0;boss.specialGauge=100;boss.specialReady=true;updateBoss(.016);return boss.attackName;},
       spawnWarp:()=>spawnRandomWarpGate(true),
       enterBonus:()=>{if(!warpGate)spawnRandomWarpGate(true);return enterBonusStage();},
       exitBonus:()=>exitBonusStage('DEBUG RETURN'),
@@ -3592,9 +3965,9 @@
       respawn:()=>respawnAtCheckpoint('DEBUG RESPAWN'),
       collectStaminaCola:()=>{const cola=items.find((item)=>item.type==='staminaCola');if(!cola)return false;player.x=cola.x-player.w/2;player.y=cola.y-player.h/2;updateObjects(.016);return cola.collected;},
       defeatBoss:()=>{if(boss){boss.hp=1;boss.hit=0;boss.state=bossMoveState();boss.intro=true;boss.active=true;damageBoss(99);}},
-      state:()=>({mode,currentStage:STAGES[currentStage].id,stageCount:STAGES.length,stageMusic:stageMusicName(),bossMusic:boss?bossMusicName(boss.phase):null,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),cutinImageSource:ui.ultimateCutinImage?.src||'',cutinQuote:ui.ultimateCutinQuote?.textContent||'',dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,maxHp:player.maxHp,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),walkPhase:player.walkPhase,visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,ultimateAirborne:!!player.ultimateSequence?.airborne,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose(),swordAnchor:swordHandAnchor(),vineAttached:!!player.vine,oxygenGear:stageIsWater()},
+      state:()=>({mode,currentStage:STAGES[currentStage].id,stageCount:STAGES.length,stageMusic:stageMusicName(),bossMusic:boss?bossMusicName(boss.phase):null,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),cutinImageSource:ui.ultimateCutinImage?.src||'',cutinQuote:ui.ultimateCutinQuote?.textContent||'',dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,maxHp:player.maxHp,invincible:player.invincible,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),walkPhase:player.walkPhase,visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,ultimateAirborne:!!player.ultimateSequence?.airborne,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,swordPose:currentSwordPose(),swordAnchor:swordHandAnchor(),vineAttached:!!player.vine,oxygenGear:stageIsWater()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive&&!enemy.allied).length,alliesAlive:enemies.filter((enemy)=>enemy.alive&&enemy.allied).length,kingClones:kingClones.length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,12).map((enemy)=>({type:enemy.type,attack:enemy.attack,alternateAttack:enemy.alternateAttack,attackCooldown:enemy.attackCooldown,allied:enemy.allied,hp:enemy.hp,maxHp:enemy.maxHp,hit:enemy.hit,x:enemy.x,y:enemy.y,w:enemy.w,h:enemy.h})),gimmicks:gimmicks.map((gimmick)=>({type:gimmick.type,x:gimmick.x,y:gimmick.y,w:gimmick.w,h:gimmick.h,targetX:gimmick.targetX,targetY:gimmick.targetY,active:!!gimmick.active,warning:!!gimmick.warning})),hazardPositions:hazards.map((hazard)=>({type:hazard.type,x:hazard.x,y:hazard.y,w:hazard.w,h:hazard.h})),coinPositions:coins.filter((coin)=>!coin.collected).slice(0,12).map((coin)=>({x:coin.x,y:coin.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),jumpPadVelocity:JUMP_PAD_VELOCITY,jumpPadPositions:jumpPads.map((pad)=>({x:pad.x,y:pad.y,w:pad.w,h:pad.h})),oneWayPlatforms:allPlatforms().filter(isOneWayPlatform).slice(0,128).map((platform)=>({x:platform.x,y:platform.y,w:platform.w,h:platform.h,surfaceRoute:!!platform.surfaceRoute})),transformTypes:transformItems.filter((item)=>!item.collected).map((item)=>item.type),kingWeight:TRANSFORM_WEIGHTS.filter((type)=>type==='king').length/TRANSFORM_WEIGHTS.length,shockwaves:shockwaves.length,shockwaveKinds:shockwaves.map((wave)=>wave.kind||'ground'),shockwaveData:shockwaves.map((wave)=>({kind:wave.kind||'ground',maxDistance:wave.maxDistance||0,breaksWalls:!!wave.breaksWalls})),rushTrails:rushTrails.length,projectileKinds:droplets.map((drop)=>drop.kind||'droplet'),
-        boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,maxHp:boss.maxHp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,arenaUpperPlatforms:staticPlatforms.filter((platform)=>platform.bossArena&&platform.oneWay).length,specialGauge:boss.specialGauge,specialReady:boss.specialReady,specialCount:boss.specialCount,darkMode:boss.darkMode||null,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x,minionsAlive:gorillaMinionsAlive(),damageLocked:boss.type==='gorilla'&&gorillaMinionsAlive()>0,guardBroken:!!boss.guardBroken}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},warpGate:warpGate?{x:warpGate.x,y:warpGate.y,life:warpGate.life}:null,bonus:bonusStage?{active:bonusStage.active,timer:bonusStage.timer,collected:bonusStage.collected,coinCount:bonusStage.coins.filter((coin)=>!coin.collected).length}:null,vines:vines.map((vine)=>({x:vine.x,y:vine.y,length:vine.length})),darkClones:darkClones.length,finale:{opening:finaleOpening?{active:finaleOpening.active,phase:finaleOpening.phase,timer:finaleOpening.timer}:null,bossReveal:darkBossReveal?{active:darkBossReveal.active,spoken:darkBossReveal.spoken,timer:darkBossReveal.timer}:null,endRoll:endRoll?{active:endRoll.active,timer:endRoll.timer}:null,staminaColas:items.filter((item)=>item.type==='staminaCola').map((item)=>({collected:item.collected,respawns:item.respawns,respawnTimer:item.respawnTimer}))},osakaBackdrop:['1-1','1-2','1-4','1-8'].includes(STAGES[currentStage].id),enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner,homingTime:shot.homingTime||0})),wingProjectiles:wingShots.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),piercing:!!shot.piercing})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
+        boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,maxHp:boss.maxHp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,arenaUpperPlatforms:staticPlatforms.filter((platform)=>platform.bossArena&&platform.oneWay).length,specialGauge:boss.specialGauge,specialReady:boss.specialReady,specialCount:boss.specialCount,darkMode:boss.darkMode||null,darkModeTimer:boss.darkModeTimer||0,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x,minionsAlive:gorillaMinionsAlive(),damageLocked:boss.type==='gorilla'&&gorillaMinionsAlive()>0,guardBroken:!!boss.guardBroken}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},warpGate:warpGate?{x:warpGate.x,y:warpGate.y,life:warpGate.life}:null,bonus:bonusStage?{active:bonusStage.active,timer:bonusStage.timer,collected:bonusStage.collected,coinCount:bonusStage.coins.filter((coin)=>!coin.collected).length}:null,vines:vines.map((vine)=>({x:vine.x,y:vine.y,length:vine.length})),darkClones:darkClones.length,finale:darkStory?{state:darkStory.state,timer:darkStory.timer,focus:darkStory.focus,heartStock:darkStory.heartStock,heartMax:darkStory.heartMax,heartsRemaining:darkStory.hearts.filter((heart)=>!heart.collected).length,dialogueIndex:darkStory.dialogueIndex,dialogueLine:darkStory.dialogue?.[darkStory.dialogueIndex]?.line||null,locked:darkStoryLocked(),revive:{...darkStory.revive},retry:{...darkStory.retry},intro:{...darkStory.intro},collapse:{...darkStory.collapse},escape:{active:darkStory.escape.active,wallX:darkStory.escape.wallX,goalX:darkStory.escape.goalX,lastJump:darkStory.escape.lastJump,restarts:darkStory.escape.restarts,debris:darkStory.escape.debris.length},completed:darkStory.completed,staminaColas:items.filter((item)=>item.type==='staminaCola').map((item)=>({collected:item.collected,respawns:item.respawns,respawnTimer:item.respawnTimer}))}:null,osakaBackdrop:['1-1','1-2','1-4','1-8'].includes(STAGES[currentStage].id),enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner,homingTime:shot.homingTime||0})),wingProjectiles:wingShots.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),piercing:!!shot.piercing})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length+(darkStory?.escape.debris.length||0)},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
         world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY},render:{touchDevice,reducedEffects,dpr,backingWidth:canvas.width,backingHeight:canvas.height,enemyArt:'mechaPngLazy',assetRequests:{player:Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,!!image.repairRequested])),state:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,record.requested])),motion:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,record.requested])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,!!image.repairRequested])),boss:!!bossImage.repairRequested||!!gorillaBossImage.repairRequested,gorillaBoss:!!gorillaBossImage.repairRequested,sword:!!phoenixSwordImage.repairRequested}},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),stateSheets:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),motionSheets:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),boss:{loaded:bossImage.repairRequested&&bossImage.complete&&bossImage.naturalWidth>0,width:bossImage.naturalWidth,height:bossImage.naturalHeight},gorillaBoss:{loaded:gorillaBossImage.repairRequested&&gorillaBossImage.complete&&gorillaBossImage.naturalWidth>0,width:gorillaBossImage.naturalWidth,height:gorillaBossImage.naturalHeight},sword:{loaded:phoenixSwordImage.repairRequested&&phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}]))}})
     });
   }
