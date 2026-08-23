@@ -40,7 +40,11 @@
     warpOpen:[180,1320,.42],warpEnter:[260,1760,.46],warpExit:[1180,330,.38],vineGrab:[330,620,.18],vineJump:[420,980,.2],bossUltimate:[72,1480,.72],
     bossCutin:[66,1480,.5],darkBossCutin:[58,1760,.56],bossUltimateImpact:[52,720,.38],
     darkTransform:[130,1180,.48],darkFeather:[720,150,.22],darkClones:[110,1320,.58],electricField:[90,1760,.62],earthRend:[55,620,.58],
-    irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3]
+    irregular:[48,1480,.72],blackout:[95,42,.42],darkReveal:[130,880,.48],darkIntroVoice:[180,72,.52],chaosHunt:[80,1520,.68],darkDefeatVoice:[220,62,.7],darkVanish:[1320,45,.72],staminaCola:[420,1760,.46],colaSpawn:[280,980,.3],
+    dialogueTap:[420,620,.08],heartGet:[330,1040,.28],heartMax:[440,1760,.52],heartBreak:[520,58,.5],heartRevive:[65,1320,.72],
+    windRise:[90,620,.55],swordSummon:[72,1480,.65],swordPoint:[780,88,.34],battleStart:[55,1760,.72],rumble:[42,58,.85],
+    darkSlashWave:[1200,95,.24],swordGround:[130,55,.34],darkFlameRift:[68,980,.58],rushStart:[120,1420,.3],dive:[880,70,.34],darkJump:[180,620,.18],
+    darkConsume:[880,44,.9],escapeStart:[70,1180,.56],lastJump:[220,1320,.38],finalCollapse:[44,32,1.0],endingChime:[392,784,.9]
   };
 
   function unlock() {
@@ -83,6 +87,9 @@
       jungle:{lead:[294,392,440,587,659,587,494,440,330,440,523,698,784,698,587,523],bass:[73,110,98,131],step:136,type:'triangle'},
       bonus:{lead:[523,659,784,1047,988,1175,1047,880,659,784,988,1319,1175,988,880,784],bass:[131,196,165,220],step:112,type:'triangle'},
       darkApproach:{lead:[147,185,220,277,247,220,185,165,147,220,277,370,330,277,247,185],bass:[49,62,55,73],step:156,type:'triangle'},
+      darkHorror:{lead:[73,0,0,65,0,0,82,0,0,55,0,0],bass:[37,0,41,0],step:740,type:'sine',ambient:true},
+      darkCollapse:{lead:[55,0,62,0,49,0,46,0],bass:[31,35,29,33],step:420,type:'sawtooth',ambient:true},
+      darkEscape:{lead:[147,196,165,247,220,294,247,330,196,262,220,349,294,392,330,247],bass:[49,65,55,73],step:108,type:'sawtooth'},
       boss:{lead:[110,147,165,123,110,196,165,123],bass:[55,73,65,62],step:150,type:'sawtooth'},
       boss2:{lead:[147,220,175,247,147,294,220,175],bass:[73,98,82,110],step:120,type:'sawtooth'},
       bossTitan:{lead:[110,165,147,220,123,196,165,247],bass:[55,82,62,73],step:148,type:'sawtooth'},
@@ -93,6 +100,7 @@
       bossGorilla2:{lead:[110,165,220,196,262,247,220,165],bass:[55,73,65,82],step:118,type:'sawtooth'},
       darkFeni:{lead:[131,196,165,247,220,294,247,185,147,220,277,330,294,247,220,165],bass:[44,55,49,65],step:126,type:'sawtooth'},
       darkFeni2:{lead:[165,247,330,294,392,330,294,247,196,294,392,494,440,392,330,277],bass:[55,73,65,82],step:98,type:'sawtooth'},
+      darkEnding:{lead:[392,0,494,0,440,0,330,0,294,0,392,0,330,0,247,0],bass:[65,0,55,0],step:610,type:'sine',ambient:true},
       ending:{lead:[330,392,494,659,587,494,392,330,294,370,494,587,523,440,392,330],bass:[82,98,110,73],step:224,type:'sine'},
       goal:{lead:[523,659,784,1047,988,784,659,880,1047,1319,1175,1047],bass:[262,330,392,440],step:190,type:'triangle'}
     };
@@ -100,10 +108,10 @@
     synthStep = 0;
     synthTimer = window.setInterval(() => {
       if (currentName !== name) return;
-      const lead=score.lead[synthStep%score.lead.length],bossTrack=name.startsWith('boss')||name.startsWith('darkFeni');
-      note(lead,name==='goal'?.24:.145,name==='goal'?.034:bossTrack?.026:.029,score.type);
-      if(synthStep%2===0)note(score.bass[Math.floor(synthStep/2)%score.bass.length],.2,bossTrack?.025:.019,bossTrack?'sawtooth':'sine');
-      if(synthStep%4===3)note(lead*(bossTrack?1.5:2),.08,bossTrack?.011:.009,'square');
+      const lead=score.lead[synthStep%score.lead.length],bass=score.bass[Math.floor(synthStep/2)%score.bass.length],bossTrack=name.startsWith('boss')||name.startsWith('darkFeni')||name==='darkEscape';
+      if(lead>0)note(lead,score.ambient?.55:name==='goal'?.24:.145,score.ambient?.012:name==='goal'?.034:bossTrack?.026:.029,score.type);
+      if(synthStep%2===0&&bass>0)note(bass,score.ambient?.7:.2,score.ambient?.016:bossTrack?.025:.019,bossTrack?'sawtooth':'sine');
+      if(!score.ambient&&lead>0&&synthStep%4===3)note(lead*(bossTrack?1.5:2),.08,bossTrack?.011:.009,'square');
       synthStep += 1;
     }, score.step);
   }
@@ -163,10 +171,10 @@
     const [from, to, duration] = tones[name] || [220, 280, .1];
     const oscillator = context.createOscillator();
     const gain = context.createGain();
-    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'bossCutin' || name === 'darkBossCutin' || name === 'bossUltimateImpact' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
+    oscillator.type = name === 'damage' || name === 'gameover' || name === 'attack' || name === 'omniRush' || name === 'dash' || name === 'gorillaGuard' || name === 'bossUltimate' || name === 'bossCutin' || name === 'darkBossCutin' || name === 'bossUltimateImpact' || name === 'earthRend' || name === 'irregular' || name === 'chaosHunt' || name === 'rumble' || name === 'finalCollapse' || name === 'darkFlameRift' ? 'sawtooth' : name === 'doubleJump' || name === 'kingFlight' || name === 'revive' || name === 'heartRevive' || name === 'endingChime' || name === 'kingClones' || name === 'darkClones' || name === 'staminaCola' ? 'triangle' : 'square';
     oscillator.frequency.setValueAtTime(from, context.currentTime);
     oscillator.frequency.exponentialRampToValueAtTime(to, context.currentTime + duration);
-    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
+    const volume = name === 'coin' ? .022 : ['speedUp','speedMax','wingFire','bossWarning','ultimateCharge','omniRush','kingClones','boostRail','phaseGate','warpOpen','warpEnter','bossUltimate','bossCutin','darkBossCutin','bossUltimateImpact','electricField','earthRend','irregular','chaosHunt','darkVanish','staminaCola','battleStart','heartRevive','rumble','finalCollapse','escapeStart'].includes(name) ? .052 : name === 'doubleJump' ? .06 : name === 'clash' ? .03 : .035;
     gain.gain.setValueAtTime(volume, context.currentTime);
     gain.gain.exponentialRampToValueAtTime(.001, context.currentTime + duration);
     oscillator.connect(gain).connect(context.destination);
@@ -231,6 +239,16 @@
       [1320,880,440,220,110,55].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.038,index<2?'triangle':'sawtooth'),index*48));
     } else if (name === 'staminaCola') {
       [523,659,784,1047,1319,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.034,'triangle'),index*42));
+    } else if (name === 'heartGet' || name === 'heartMax') {
+      const scale=name==='heartMax'?[440,659,880,1320,1760]:[330,523,784,1047];scale.forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.2,.036,'triangle'),index*48));
+    } else if (name === 'heartRevive') {
+      [65,98,196,392,784,1320].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.25,.044,index<2?'sawtooth':'triangle'),index*58));
+    } else if (name === 'battleStart') {
+      [55,82,110,220,440,880,1760].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.22,.048,index<4?'sawtooth':'square'),index*35));
+    } else if (name === 'rumble' || name === 'finalCollapse') {
+      [42,38,48,32].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.65,.04,'sawtooth'),index*90));
+    } else if (name === 'endingChime') {
+      [392,494,587,784].forEach((frequency,index)=>window.setTimeout(()=>note(frequency,.7,.022,'sine'),index*220));
     }
   }
 
