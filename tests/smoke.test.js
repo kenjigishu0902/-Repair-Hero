@@ -780,7 +780,7 @@ function testBossGateAndChaseWall() {
 }
 
 function testAssetsAndSyntaxSurface() {
-  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png', 'boss_mecha_gorilla.png', 'enemy_mecha_monkey.png', 'assets/cutins/boss_titan_overload.webp', 'assets/cutins/boss_shark_tsunami.webp', 'assets/cutins/boss_gorilla_cataclysm.webp', 'assets/cutins/dark_feni_chaos.webp', 'assets/cutins/dark_feni_leak.webp', 'assets/cutins/dark_feni_lcd.webp', 'assets/cutins/dark_feni_muscle.webp', 'assets/cutins/dark_feni_board.webp', 'assets/dark-feni/dark_feni_master_sheet.webp', 'assets/dark-feni/dark_feni_portraits.webp', 'assets/dark-feni/dark_feni_sword.webp', 'assets/dark-feni/dark_feni_mode_sheet.webp', 'assets/dark-feni/dark_feni_playable_icon.webp']) {
+  for (const file of ['feni.png', 'feni_battery.png', 'feni_lcd.png', 'feni_king.png', 'fenichan_gorimacho.png', 'fenichan_gorimacho_punch.png', 'feni_dash.png', 'feni_states_normal.png', 'feni_states_battery.png', 'feni_states_lcd.png', 'feni_states_king.png', 'feni_states_muscle.png', 'feni_motion_normal.png', 'feni_motion_battery.png', 'feni_motion_lcd.png', 'feni_motion_king.png', 'feni_motion_muscle.png', 'phoenix_sword.png', 'feni_sword_ready.png', 'feni_sword_swing.png', 'feni_sword_finish.png', 'enemy_phone_bot.png', 'enemy_tool_mech.png', 'enemy_battery_bot.png', 'enemy_board_trooper.png', 'enemy_mecha_shark.png', 'enemy_battle_drone.png', 'boss_mega_bug_titan.png', 'boss_mecha_gorilla.png', 'enemy_mecha_monkey.png', 'assets/cutins/boss_titan_overload.webp', 'assets/cutins/boss_shark_tsunami.webp', 'assets/cutins/boss_gorilla_cataclysm.webp', 'assets/cutins/dark_feni_chaos.webp', 'assets/cutins/dark_feni_leak.webp', 'assets/cutins/dark_feni_lcd.webp', 'assets/cutins/dark_feni_muscle.webp', 'assets/cutins/dark_feni_board.webp', 'assets/dark-feni/dark_feni_master_sheet.webp', 'assets/dark-feni/dark_feni_portraits.webp', 'assets/dark-feni/dark_feni_sword.webp', 'assets/dark-feni/dark_feni_mode_sheet.webp', 'assets/dark-feni/dark_feni_idle_sheet.webp', 'assets/dark-feni/dark_feni_playable_icon.webp']) {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
@@ -810,9 +810,12 @@ function testAssetsAndSyntaxSurface() {
   assert.match(gameSource, /enemyImage\?\.repairRequested[\s\S]+ctx\.drawImage\(enemyImage\b/, 'regular enemies render the detailed mech PNG only after proximity loading');
   assert.match(gameSource, /ULTIMATE_CUTIN_TIME = \.42[\s\S]+ULTIMATE_DIALOGUE_TIME = 1\.18/, 'the player cinematic reaches the spoken line and attack substantially faster');
   assert.match(gameSource, /BOSS_CUTIN_TIME=\.72[\s\S]+boss_titan_overload\.webp[\s\S]+dark_feni_board\.webp/, 'boss and all Dark Feni modes use fast generated full-screen cut-ins');
-  assert.match(gameSource, /dark_feni_master_sheet\.webp[\s\S]+dark_feni_portraits\.webp[\s\S]+dark_feni_sword\.webp[\s\S]+dark_feni_mode_sheet\.webp[\s\S]+dark_feni_playable_icon\.webp/, 'gameplay, dialogue, strengthened modes, playable UI, and weapon rendering share the dedicated Dark Feni design');
+  assert.match(gameSource, /dark_feni_master_sheet\.webp[\s\S]+dark_feni_portraits\.webp[\s\S]+dark_feni_sword\.webp[\s\S]+dark_feni_mode_sheet\.webp[\s\S]+dark_feni_idle_sheet\.webp[\s\S]+dark_feni_playable_icon\.webp/, 'gameplay, dialogue, strengthened modes, living idle poses, playable UI, and weapon rendering share the dedicated Dark Feni design');
   const darkRenderer=gameSource.match(/function drawDarkFeniAvatar[\s\S]*?function drawDarkFeniCinematicPortrait/)?.[0]||'';assert.doesNotMatch(darkRenderer,/playerMotionSheets|playerImages|DARK_MODE_SPRITES/,'Dark Feni never falls back to a recoloured normal Feni sprite');assert.match(darkRenderer,/DARK_FENI_POSE_INDEX\.dissolve[\s\S]+consume/,'the master renderer supports bottom-up particle dissolution rather than opacity-only removal');
   assert.match(gameSource, /function drawDarkFeniModeSprite[\s\S]+darkFeniModeImage[\s\S]+function drawDarkPlayable[\s\S]+modeSheet:true/, 'generated four-pose mode art is used directly by the playable character renderer');
+  assert.match(gameSource, /DARK_IDLE_ROW=Object\.freeze\(\{look:0,footStep:1,armsCross:2,preen:3,swordAdjust:4\}\)[\s\S]+function updateDarkPlayableIdleMotion[\s\S]+function updateDarkBossIdle[\s\S]+function drawDarkFeniIdleSprite/, 'Dark Feni owns five synchronized, randomized idle poses for both playable and boss implementations');
+  assert.match(gameSource, /filter\(\(action\)=>action!==actor\.idleLastAction\)/, 'the random idle selector excludes the immediately previous special pose');
+  assert.match(gameSource, /const eligible=boss\.grounded&&distance>540[\s\S]+distance>760[\s\S]+distance>830/, 'long boss idles are restricted to safe distance and cooldown windows');
   assert.match(gameSource, /const embeddedSword=useCombatSheet[\s\S]+!embeddedSword[\s\S]+drawDarkFeniSword/, 'the combat sheet keeps the hand-wrapped sword grip intact instead of drawing a floating duplicate');
   for(const storyState of ['INTRO','HEART_AREA','PRE_BATTLE_DIALOGUE','BATTLE_INTRO','BATTLE','BOSS_DEFEAT_TRANSITION','BOSS_DEFEATED','POST_BATTLE_DIALOGUE','COLLAPSE_CUTSCENE','ESCAPE','ENDING','COMPLETE'])assert.ok(gameSource.includes(`${storyState}:'${storyState}'`),`Dark Feni story owns the explicit ${storyState} state`);
   for(const line of ['ここまで来たか…','お前は…まさか…','終わりの始まりを告げようか…','…強くなったな…','なんでこんな事ｯ！！','これが俺の選択さ…','他にもやりようはあったはずだ！！','お前にも、時期が来れば分かるさ…','Beyond Light and Darkness…'])assert.ok(gameSource.includes(line),`story contains the required line: ${line}`);
@@ -823,7 +826,7 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
   assert.match(css, /env\(safe-area-inset-top\)[\s\S]+env\(safe-area-inset-bottom\)/, 'story UI respects notches, Dynamic Island, and the home indicator');
   assert.match(css, /character-select[\s\S]+character-card\.dark[\s\S]+dark-battle-wide[\s\S]+@media\(orientation:landscape\) and \(max-height:620px\)/, 'playable selection and wide-battle UI include phone portrait and short-landscape adaptations');
-  assert.match(html, /DARK FENI PLAYABLE · BUILD 08\.23-C[\s\S]+game\.js\?v=20260823c/, 'the visible build badge and cache-busted game script identify the playable Dark Feni build');
+  assert.match(html, /DARK FENI LIVING IDLE · BUILD 08\.24-D[\s\S]+game\.js\?v=20260824d/, 'the visible build badge and cache-busted game script identify the living-idle Dark Feni build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -923,13 +926,33 @@ function testPlayableDarkFeni(){
   assert.equal(state.selectedCharacter,'darkFeni');assert.equal(state.activeCharacter,'darkFeni');assert.equal(state.player.character,'darkFeni','normal stages spawn the dedicated Dark Feni player');
   assert.equal(state.player.hasSword,true,'playable Dark Feni permanently carries the Dark Feni sword');
   assert.equal(state.render.assetRequests.darkFeni.modeSheet,true,'playable selection preloads the generated twenty-frame mode sheet');
+  assert.equal(state.render.assetRequests.darkFeni.idleSheet,true,'playable selection preloads the generated twenty-five-frame living idle sheet');
   assert.equal(state.render.assetRequests.darkFeni.playableIcon,true,'playable selection preloads its dedicated UI portrait');
-  game.draw();game.attack();state=game.state();assert.ok(state.player.attackTime>0,'playable Dark Feni can perform the dedicated sword attack');assert.ok(state.shockwaveKinds.includes('darkPlayerSlash'),'the sword emits its bounded purple-red Dark Feni slash trail');
+
+  const idleExpressions={look:'guarded',footStep:'irritated',armsCross:'confident',preen:'bored',swordAdjust:'threatening'};
+  for(const [action,expression] of Object.entries(idleExpressions)){
+    assert.equal(game.forceIdle(action),action,`${action} can be selected as a playable Dark Feni idle`);state=game.state();
+    assert.equal(state.player.idleExpression,expression,`${action} uses its synchronized ${expression} expression`);game.draw();
+  }
+  game.forceIdle('armsCross');assert.notEqual(game.nextDarkIdle(),'armsCross','the same special idle cannot repeat immediately');
+  game.forceIdle('armsCross');game.setInput('right',true);game.step(.03);game.setInput('right',false);state=game.state();
+  assert.equal(state.player.idleAction,null,'movement cancels crossed arms on the first input frame');assert.equal(state.player.idleExitAction,'armsCross','the cancelled pose keeps only a brief visual cross-fade');assert.ok(state.player.vx>0,'idle cancellation never blocks movement control');
+
+  game.setStage('1-1');state=game.state();assert.equal(state.player.maxJumps,3,'playable Dark Feni keeps the requested three-stage jump');
+  for(let jump=0;jump<4;jump++){game.setInput('jump',true);game.step(.03);game.setInput('jump',false);game.step(.03);}
+  assert.equal(game.state().player.jumpCount,3,'a fourth airborne jump is rejected after Dark Feni triple-jumps');
+
+  game.setStage('1-1');game.draw();game.attack();state=game.state();assert.equal(state.player.darkComboStep,1,'the first sword input starts Dark Feni three-hit combo');assert.ok(state.player.attackTime>0,'playable Dark Feni can perform the dedicated sword attack');assert.ok(state.shockwaveKinds.includes('darkPlayerSlash'),'the sword emits its bounded purple-red Dark Feni slash trail');
+  game.step(.25);game.attack();assert.equal(game.state().player.darkComboStep,2,'the second timed input advances the sword combo');
+  game.step(.25);game.attack();assert.equal(game.state().player.darkComboStep,3,'the third timed input reaches the heavy combo finisher');
   game.step(.58);game.wingAttack();game.step(.3);state=game.state();assert.ok(state.wingProjectiles.some((shot)=>shot.kind==='darkPlayerFeather'),'playable Dark Feni fires the dedicated black-wing projectile');
   game.step(1);assert.equal(game.ultimate(),true,'playable Dark Feni can activate a dedicated ultimate');state=game.state();assert.equal(state.cutinVisible,true);assert.match(state.cutinImageSource,/assets\/cutins\/dark_feni_chaos\.webp/,'playable ultimate uses the canonical Dark Feni cut-in rather than normal Feni art');
   const ultimateKinds=new Set();for(let frame=0;frame<55;frame++){game.step(.05);game.state().wingProjectiles.forEach((shot)=>ultimateKinds.add(shot.kind));}
   assert.ok(ultimateKinds.has('darkPlayerFeather'),'playable normal-form ultimate releases a sustained chaos-feather volley');
   game.setMode('battery');state=game.state();assert.equal(state.player.darkMode,'leak','battery pickup visibly changes playable Dark Feni into the matching leak form');assert.ok(state.player.darkTransformTimer>=1,'playable mode change owns a visible transformation interval');assert.equal(state.player.hasSword,true,'mode changes keep the sword visibly attached to Dark Feni');
+  for(const darkMode of ['battery','lcd','muscle','king']){game.setStage('1-1');game.setMode(darkMode);game.forceIdle('preen');state=game.state();assert.equal(state.player.idleAction,'preen',`${darkMode} form retains the living idle system`);game.draw();}
+  game.setStage('1-1');game.respawn();assert.ok(game.state().notice.includes('何度でも…蘇るさ…'),'playable Dark Feni keeps her dedicated respawn line');
+  game.setStage('1-1');state=game.state();game.teleport(state.goal.x+2,480);game.step(.04);assert.ok(game.state().notice.includes('俺の選択の邪魔をするな…'),'playable Dark Feni keeps her dedicated goal line');
   for(const expression of ['shock','alert','sadness','anguish','anger','resolve','quietAcceptance'])assert.ok(state.feniStoryExpressions.includes(expression),`story portraits expose Feni's ${expression} expression`);
 
   game.setStage('3-1');state=game.state();assert.equal(state.selectedCharacter,'darkFeni','the selected playable remains unlocked for later normal-stage replays');assert.equal(state.activeCharacter,'feni','the authored Dark Feni story safely forces its Feni protagonist');assert.equal(state.player.character,'feni','the boss route never spawns Dark Feni against herself');
@@ -1004,7 +1027,10 @@ function testOsakaWarpVinesBossUltimatesAndDarkTrueEnd(){
   game.step(.2);game.advanceStory();assert.equal(game.state().finale.state,'BATTLE_INTRO','the last line starts the hair-and-sword battle introduction');
   game.step(5.05);state=game.state();assert.equal(state.finale.intro.swordSummoned,true,'Dark Feni summons the dedicated sword');assert.equal(state.finale.intro.swordPointing,true,'Dark Feni points the sword at Feni after exposing the scar');assert.ok(state.finale.intro.scarReveal>=1&&state.finale.intro.eyeGlow>=1,'the injured eye is fully revealed and glowing');
   game.step(2.5);state=game.state();assert.equal(state.finale.state,'BATTLE','BATTLE START restores player control');assert.equal(state.boss.active,true);assert.equal(state.finale.cameraMode,'combatWide','the duel switches to its dedicated two-fighter wide camera');assert.ok(state.world.viewportWidth>=1000,'portrait combat camera exposes enough horizontal arena space to read both fighters and telegraphs');
-  assert.equal(state.render.assetRequests.darkFeni.modeSheet,true,'the generated mode sheet is loaded for the live boss');assert.equal(state.render.assetRequests.darkFeni.playableIcon,true,'the dedicated Dark Feni UI icon is loaded with the character package');
+  assert.equal(state.render.assetRequests.darkFeni.modeSheet,true,'the generated mode sheet is loaded for the live boss');assert.equal(state.render.assetRequests.darkFeni.idleSheet,true,'the living idle sheet is loaded for the live boss');assert.equal(state.render.assetRequests.darkFeni.playableIcon,true,'the dedicated Dark Feni UI icon is loaded with the character package');
+  assert.equal(game.forceBossIdle('armsCross'),'armsCross','the boss can use crossed arms inside an explicit safe combat window');state=game.state();assert.equal(state.boss.idleExpression,'confident');game.draw();
+  assert.equal(game.forceDarkAttack('darkSlashWave'),'darkSlashWave','boss action selection remains available from a special idle');assert.equal(game.state().boss.idleAction,null,'an attack immediately cancels the boss special idle');game.step(1.5);
+  assert.equal(game.forceBossIdle('preen'),'preen','the boss can use the restrained preening pose during an allowed lull');assert.equal(game.state().boss.idleExpression,'bored');game.draw();
 
   for(let hit=0;hit<7;hit++)game.hit();state=game.state();assert.equal(state.finale.heartStock,14,'HP zero consumes exactly one revival heart');assert.equal(state.finale.revive.active,true,'the heart shatter and flame revival sequence starts');
   game.hit();assert.equal(game.state().finale.heartStock,14,'revival lock prevents a multi-hit from consuming more hearts');
