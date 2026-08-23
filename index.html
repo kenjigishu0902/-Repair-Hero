@@ -7,7 +7,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260821j">
+  <link rel="stylesheet" href="style.css?v=20260822a">
 </head>
 <body>
   <main id="app">
@@ -23,18 +23,22 @@
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div class="boss-hp-track"><i id="bossHp"></i></div><small id="bossSpecialLabel">必殺技ゲージ</small><div class="boss-special-track"><i id="bossSpecial"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
+    <aside id="darkHeartHud" class="dark-heart-hud hidden" aria-live="polite" aria-label="燃えるハート復活ストック">
+      <span>REVIVE STOCK</span><b><i aria-hidden="true">🔥❤️</i> × <strong id="darkHeartCount">00</strong> / 15</b><em id="darkHeartMax" class="hidden">MAX</em>
+    </aside>
 
     <section id="title" class="screen title">
       <div class="title-scan" aria-hidden="true"></div>
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">BOSS ULTIMATE CINEMATIC · BUILD 08.21-J</div>
+        <div class="title-badge">DARK FENI STORY BOSS · BUILD 08.22-A</div>
         <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
         <div class="title-status" aria-label="ゲーム内容"><span>11 STAGES</span><span>5 FORMS</span><span>4 BOSS TYPES</span></div>
         <button id="start"><i>IGNITION</i> ゲームスタート <small>SPACE / ENTER</small></button>
+        <button id="darkFeniStart" class="dark-feni-start"><i>IRREGULAR ROUTE</i> DARK FENI BATTLE <small>FULL STORY EVENT</small></button>
         <button id="tutorialOpen" class="tutorial-open"><i>HOW TO PLAY</i> 操作方法を見る <small>スマホ / PC</small></button>
         <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E</p>
       </div>
@@ -70,6 +74,20 @@
       <canvas id="noticePortrait" class="notice-portrait" width="256" height="256" aria-hidden="true"></canvas>
       <span id="noticeText"></span>
     </div>
+    <section id="irregularChoice" class="irregular-choice hidden" aria-label="IRREGULARルート選択">
+      <div class="irregular-noise" aria-hidden="true"></div>
+      <p>IRREGULAR</p>
+      <button id="tryDarkFeni">Try…？</button>
+    </section>
+    <section id="storyDialogue" class="story-dialogue hidden" role="dialog" aria-live="assertive" aria-label="ストーリー会話">
+      <div class="story-dialogue-card">
+        <small id="storySpeaker">DARK FENI</small>
+        <p id="storyLine"></p>
+        <button id="storyTap" aria-label="次のセリフへ進む">TAP <i>▶</i></button>
+      </div>
+    </section>
+    <div id="storyBanner" class="story-banner hidden" aria-live="assertive"><span>BATTLE START</span></div>
+    <div id="storyFx" class="story-fx hidden" aria-hidden="true"><i></i><b></b><span></span></div>
     <div id="ultimateCutin" class="ultimate-cutin hidden" aria-live="assertive" aria-label="必殺技カットイン">
       <i class="cutin-slash cutin-slash-a" aria-hidden="true"></i>
       <i class="cutin-slash cutin-slash-b" aria-hidden="true"></i>
@@ -101,7 +119,7 @@
       </div>
     </nav>
   </main>
-  <script src="sound.js?v=20260821j"></script>
-  <script src="game.js?v=20260821j"></script>
+  <script src="sound.js?v=20260822a"></script>
+  <script src="game.js?v=20260822a"></script>
 </body>
 </html>
