@@ -76,7 +76,7 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
   context.window = context;
   context.globalThis = context;
   context.addEventListener = () => {};
-  context.visualViewport = { width, height, addEventListener() {} };
+  context.visualViewport = { width, height, scale:1, addEventListener() {} };
   vm.createContext(context);
   vm.runInContext(fs.readFileSync(path.join(root, 'game.js'), 'utf8'), context, { filename: 'game.js' });
   return context.__repairHeroDebug;
@@ -826,7 +826,7 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
   assert.match(css, /env\(safe-area-inset-top\)[\s\S]+env\(safe-area-inset-bottom\)/, 'story UI respects notches, Dynamic Island, and the home indicator');
   assert.match(css, /character-select[\s\S]+character-card\.dark[\s\S]+dark-battle-wide[\s\S]+@media\(orientation:landscape\) and \(max-height:620px\)/, 'playable selection and wide-battle UI include phone portrait and short-landscape adaptations');
-  assert.match(html, /DARK FENI LIVING IDLE · BUILD 08\.24-D[\s\S]+game\.js\?v=20260824d/, 'the visible build badge and cache-busted game script identify the living-idle Dark Feni build');
+  assert.match(html, /MOBILE TAP STABLE · BUILD 08\.31-E[\s\S]+game\.js\?v=20260831e/, 'the visible build badge and cache-busted game script identify the tap-stable mobile build');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
@@ -1113,6 +1113,23 @@ function testViewportMatrix() {
   }
 }
 
+function testMobileTapDoesNotZoomViewport() {
+  const game = createGame({ width:390, height:760, touch:true });
+  game.start();
+  const initial = game.state().world;
+  game.resizeViewport(390,844,1,false);
+  let current = game.state().world;
+  assert.equal(current.baseScale,initial.baseScale,'mobile browser chrome height change does not alter camera zoom');
+  assert.equal(current.viewportHeight,initial.viewportHeight,'plain tap keeps the gameplay viewport height stable');
+  game.resizeViewport(330,650,1.18,false);
+  current = game.state().world;
+  assert.equal(current.baseScale,initial.baseScale,'gesture viewport changes are ignored');
+  game.resizeViewport(844,390,1,true);
+  current = game.state().world;
+  assert.equal(current.portrait,false,'a real orientation change still rebuilds the viewport');
+  assert.notEqual(current.baseScale,initial.baseScale,'orientation rebuild recalculates the camera scale');
+}
+
 function testSoundRuntime() {
   class AudioContext {
     constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
@@ -1177,6 +1194,7 @@ testModes();
 testRushPunch();
 testBossGateAndChaseWall();
 testViewportMatrix();
+testMobileTapDoesNotZoomViewport();
 testAssetsAndSyntaxSurface();
 testLazyAssetLoadingAndMechaEnemies();
 testJungleRaidBossGuardMusicAndSwordTracking();
