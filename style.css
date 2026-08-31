@@ -1,8 +1,9 @@
 :root{--orange:#ff5a1f;--yellow:#ffd338;--navy:#102b46;--glass:rgba(9,27,45,.88)}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{width:100%;height:100%;height:100dvh;margin:0;overflow:hidden;background:#102b46;color:#fff;font-family:"Arial Black","Noto Sans JP",sans-serif;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+html,body{width:100%;height:100%;height:100svh;margin:0;overflow:hidden;background:#102b46;color:#fff;font-family:"Arial Black","Noto Sans JP",sans-serif;touch-action:none;overscroll-behavior:none;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
+#app,#game,.screen,.touch,.touch button{touch-action:none}
 button{border:0;color:inherit;font:inherit;cursor:pointer;touch-action:none}
-#app,#game{position:fixed;inset:0;width:100%;height:100%;height:100dvh}#game{display:block}.hidden{display:none!important}
+#app,#game{position:fixed;inset:0;width:100%;height:100%;height:100svh}#game{display:block}.hidden{display:none!important}
 .screen{position:fixed;z-index:20;inset:0;display:grid;place-content:center;text-align:center}
 .title{--title-cyan:#47eaff;--title-fire:#ff4d1f;display:block;overflow:hidden;isolation:isolate;text-align:left;background:radial-gradient(circle at 72% 44%,#1d658a99 0 9%,transparent 31%),radial-gradient(circle at 70% 48%,#ff4b1c42,transparent 24%),linear-gradient(118deg,#020812 0 33%,#071d31 58%,#123f56 100%)}
 .title:before{content:"";position:absolute;z-index:0;inset:0;background:linear-gradient(90deg,transparent 49.7%,#52eaff18 50%,transparent 50.3%),linear-gradient(0deg,transparent 49.7%,#52eaff12 50%,transparent 50.3%);background-size:82px 82px;transform:perspective(620px) rotateX(61deg) scale(1.45) translateY(33%);transform-origin:bottom;opacity:.55}
