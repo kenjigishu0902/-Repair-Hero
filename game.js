@@ -575,11 +575,26 @@
     ]:[];
   }
 
-  function resize() {
+  function resize(force = false) {
     const view = window.visualViewport;
-    width = Math.round(view?.width || innerWidth);
-    height = Math.round(view?.height || innerHeight);
-    portrait = height > width;
+    const nextWidth = Math.round(view?.width || innerWidth);
+    const nextHeight = Math.round(view?.height || innerHeight);
+    const nextPortrait = nextHeight > nextWidth;
+    // Mobile browsers resize/scroll visualViewport when their address bar is
+    // shown or hidden. That often happens on a plain tap and used to rebuild
+    // the canvas/camera with a new baseScale, which looked like tap-to-zoom.
+    // Keep the gameplay viewport stable for height-only browser chrome changes
+    // and for pinch/gesture viewport changes. Real width/orientation changes
+    // still rebuild immediately.
+    if (touchDevice && width > 0 && height > 0 && !force) {
+      const browserGestureZoom = view && Math.abs((view.scale || 1) - 1) > .01;
+      const orientationChanged = nextPortrait !== portrait;
+      const layoutWidthChanged = Math.abs(nextWidth - width) > 12;
+      if (browserGestureZoom || (!orientationChanged && !layoutWidthChanged)) return;
+    }
+    width = nextWidth;
+    height = nextHeight;
+    portrait = nextPortrait;
     // A 2x full-screen canvas is unnecessarily expensive on iPhone/iPad. Keep
     // the CSS viewport and camera unchanged while limiting only backing pixels.
     const nativeDpr = devicePixelRatio || 1;
@@ -4320,10 +4335,16 @@
   $('#next').addEventListener('click', () => { currentStage=Math.min(STAGES.length-1,currentStage+1); startGame(); });
   $('#titleBack').addEventListener('click', showTitle);
   ui.pause.addEventListener('click', () => { if (mode === 'playing'&&!darkStoryLocked()) paused = !paused; });
-  addEventListener('resize', resize);
-  addEventListener('orientationchange', () => setTimeout(resize, 80));
-  window.visualViewport?.addEventListener('resize', resize);
-  window.visualViewport?.addEventListener('scroll', resize);
+  addEventListener('resize', () => resize(false));
+  addEventListener('orientationchange', () => setTimeout(() => resize(true), 80));
+  window.visualViewport?.addEventListener('resize', () => resize(false));
+  // Safari exposes legacy gesture events even when the viewport meta tag and
+  // touch-action disable page zoom. Cancelling them keeps rapid game taps from
+  // ever being promoted to a browser-level zoom gesture.
+  const preventBrowserZoom = (event) => event.preventDefault();
+  document.addEventListener('gesturestart', preventBrowserZoom, { passive:false });
+  document.addEventListener('gesturechange', preventBrowserZoom, { passive:false });
+  document.addEventListener('gestureend', preventBrowserZoom, { passive:false });
   document.addEventListener('contextmenu', (event) => event.preventDefault());
 
   if(new URLSearchParams(location.search).has('debug')){
@@ -4368,6 +4389,7 @@
       respawn:()=>respawnAtCheckpoint('DEBUG RESPAWN'),
       collectStaminaCola:()=>{const cola=items.find((item)=>item.type==='staminaCola');if(!cola)return false;player.x=cola.x-player.w/2;player.y=cola.y-player.h/2;updateObjects(.016);return cola.collected;},
       defeatBoss:()=>{if(boss){boss.hp=1;boss.hit=0;boss.state=bossMoveState();boss.intro=true;boss.active=true;damageBoss(99);}},
+      resizeViewport:(nextWidth,nextHeight,nextScale=1,force=false)=>{if(window.visualViewport){window.visualViewport.width=nextWidth;window.visualViewport.height=nextHeight;window.visualViewport.scale=nextScale;}window.innerWidth=nextWidth;window.innerHeight=nextHeight;resize(force);return {width,height,scale,baseScale,portrait};},
       state:()=>({mode,currentStage:STAGES[currentStage].id,stageCount:STAGES.length,selectedCharacter,activeCharacter,stageMusic:stageMusicName(),bossMusic:boss?bossMusicName(boss.phase):null,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),cutinImageSource:ui.ultimateCutinImage?.src||'',cutinQuote:ui.ultimateCutinQuote?.textContent||'',dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{character:player.character,darkMode:player.darkMode,darkTransformTimer:player.darkTransformTimer,x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,maxHp:player.maxHp,invincible:player.invincible,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),walkPhase:player.walkPhase,visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,maxJumps:isDarkPlayable()?DARK_PLAYER_MAX_JUMPS:MAX_JUMPS,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,idleActionTime:player.idleActionTime,idleActionDuration:player.idleActionDuration,idleLastAction:player.idleLastAction,idleExpression:player.idleExpression,idleExitAction:player.idleExitAction,idleBlend:darkIdleActionBlend(player),blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,ultimateAirborne:!!player.ultimateSequence?.airborne,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,darkComboStep:player.darkComboStep,darkComboTimer:player.darkComboTimer,swordPose:currentSwordPose(),swordAnchor:swordHandAnchor(),vineAttached:!!player.vine,oxygenGear:stageIsWater()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive&&!enemy.allied).length,alliesAlive:enemies.filter((enemy)=>enemy.alive&&enemy.allied).length,kingClones:kingClones.length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,12).map((enemy)=>({type:enemy.type,attack:enemy.attack,alternateAttack:enemy.alternateAttack,attackCooldown:enemy.attackCooldown,allied:enemy.allied,hp:enemy.hp,maxHp:enemy.maxHp,hit:enemy.hit,x:enemy.x,y:enemy.y,w:enemy.w,h:enemy.h})),gimmicks:gimmicks.map((gimmick)=>({type:gimmick.type,x:gimmick.x,y:gimmick.y,w:gimmick.w,h:gimmick.h,targetX:gimmick.targetX,targetY:gimmick.targetY,active:!!gimmick.active,warning:!!gimmick.warning})),hazardPositions:hazards.map((hazard)=>({type:hazard.type,x:hazard.x,y:hazard.y,w:hazard.w,h:hazard.h})),coinPositions:coins.filter((coin)=>!coin.collected).slice(0,12).map((coin)=>({x:coin.x,y:coin.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),jumpPadVelocity:JUMP_PAD_VELOCITY,jumpPadPositions:jumpPads.map((pad)=>({x:pad.x,y:pad.y,w:pad.w,h:pad.h})),oneWayPlatforms:allPlatforms().filter(isOneWayPlatform).slice(0,128).map((platform)=>({x:platform.x,y:platform.y,w:platform.w,h:platform.h,surfaceRoute:!!platform.surfaceRoute})),transformTypes:transformItems.filter((item)=>!item.collected).map((item)=>item.type),kingWeight:TRANSFORM_WEIGHTS.filter((type)=>type==='king').length/TRANSFORM_WEIGHTS.length,shockwaves:shockwaves.length,shockwaveKinds:shockwaves.map((wave)=>wave.kind||'ground'),shockwaveData:shockwaves.map((wave)=>({kind:wave.kind||'ground',maxDistance:wave.maxDistance||0,breaksWalls:!!wave.breaksWalls})),rushTrails:rushTrails.length,projectileKinds:droplets.map((drop)=>drop.kind||'droplet'),
         boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,maxHp:boss.maxHp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,arenaUpperPlatforms:staticPlatforms.filter((platform)=>platform.bossArena&&platform.oneWay).length,specialGauge:boss.specialGauge,specialReady:boss.specialReady,specialCount:boss.specialCount,darkMode:boss.darkMode||null,darkModeTimer:boss.darkModeTimer||0,darkModeDwell:boss.darkModeDwell||0,modeTransitionTimer:boss.modeTransitionTimer||0,pendingMode:boss.pendingMode||null,visualPose:boss.visualPose||null,visualVx:boss.visualVx||0,idleAction:boss.idleAction||null,idleActionTime:boss.idleActionTime||0,idleLastAction:boss.idleLastAction||null,idleExpression:boss.idleExpression||'calm',idleExitAction:boss.idleExitAction||null,defeatSequenceStarted:!!boss.defeatSequenceStarted,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x,minionsAlive:gorillaMinionsAlive(),damageLocked:boss.type==='gorilla'&&gorillaMinionsAlive()>0,guardBroken:!!boss.guardBroken}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},warpGate:warpGate?{x:warpGate.x,y:warpGate.y,life:warpGate.life}:null,bonus:bonusStage?{active:bonusStage.active,timer:bonusStage.timer,collected:bonusStage.collected,coinCount:bonusStage.coins.filter((coin)=>!coin.collected).length}:null,vines:vines.map((vine)=>({x:vine.x,y:vine.y,length:vine.length})),darkClones:darkClones.length,finale:darkStory?{state:darkStory.state,timer:darkStory.timer,focus:darkStory.focus,cameraMode:darkStory.cameraMode||null,heartStock:darkStory.heartStock,heartMax:darkStory.heartMax,heartsRemaining:darkStory.hearts.filter((heart)=>!heart.collected).length,dialogueIndex:darkStory.dialogueIndex,dialogueLine:darkStory.dialogue?.[darkStory.dialogueIndex]?.line||null,locked:darkStoryLocked(),cinematicVisible:!ui.storyCinematic?.classList.contains('hidden'),currentPortrait:darkStory.currentPortrait?{...darkStory.currentPortrait}:null,revive:{...darkStory.revive},retry:{...darkStory.retry},intro:{...darkStory.intro},defeat:{...darkStory.defeat},collapse:{...darkStory.collapse},escape:{active:darkStory.escape.active,wallX:darkStory.escape.wallX,goalX:darkStory.escape.goalX,lastJump:darkStory.escape.lastJump,restarts:darkStory.escape.restarts,debris:darkStory.escape.debris.length},completed:darkStory.completed,staminaColas:items.filter((item)=>item.type==='staminaCola').map((item)=>({collected:item.collected,respawns:item.respawns,respawnTimer:item.respawnTimer}))}:null,osakaBackdrop:['1-1','1-2','1-4','1-8'].includes(STAGES[currentStage].id),feniStoryExpressions:[...FENI_STORY_EXPRESSIONS],enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner,homingTime:shot.homingTime||0})),wingProjectiles:wingShots.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),piercing:!!shot.piercing})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length+(darkStory?.escape.debris.length||0)},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
@@ -4375,7 +4397,7 @@
     });
   }
 
-  resize();
+  resize(true);
   resetGame();
   if (!animationFrame) animationFrame = requestAnimationFrame(loop);
 })();
