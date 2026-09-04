@@ -1140,10 +1140,13 @@ function testNeo3dEditionSurface() {
   const source=fs.readFileSync(path.join(root,'neo3d.js'),'utf8');
   assert.match(html,/Repair Hero NEO[\s\S]+REAL-TIME 3D[\s\S]+11 MISSIONS[\s\S]+5 FORMS/,'public entry is the new NEO 3D edition');
   assert.match(css,/repair_hero_key_visual\.webp/,'new cinematic key art is integrated into the title presentation');
-  assert.match(html,/NATIVE WEBGL · BUILD 09\.04-G/,'the visible WebGL build identifier is present');
+  assert.match(html,/NATIVE WEBGL · BUILD 09\.04-H/,'the visible WebGL build identifier is present');
   assert.match(html,/href="legacy\.html"/,'complete original edition remains available without losing prior work');
   assert.match(html,/data-key="dodge"[\s\S]+data-key="attack"[\s\S]+data-key="jump"[\s\S]+data-key="special"/,'3D mobile controls expose dodge, attack, jump, and burst');
   assert.match(source,/getContext\('webgl'/,'NEO edition uses native real-time WebGL rather than a flat CSS mockup');
+  assert.match(source,/precision mediump float;attribute[\s\S]+varying mediump vec3 N,V[\s\S]+precision mediump float;varying mediump vec3 N,V/,'both shaders use matching precision on strict iPad Safari WebGL implementations');
+  assert.match(source,/getProgramParameter\(program,gl\.LINK_STATUS\)[\s\S]+2D完成版を開く/,'shader-link failure shows a playable fallback instead of a black screen');
+  assert.match(source,/type==='sphere'\)idx\.push\(a,a\+1,b,b,a\+1,b\+1\)/,'sphere triangles use outward-facing winding and remain visible with face culling');
   assert.match(source,/const STAGES=\[[\s\S]+DARK FENI-CHAN/,'all eleven missions culminate in the Dark Feni route');
   assert.match(source,/Correct forward F:[^\n]+cracked version[\s\S]+if\(dark\)/,'3D Feni uses a forward F and Dark Feni owns the scarred emblem variant');
   for(const feature of ['function attack','function special','function damage','function drawPhoenix','function drawMech','function drawWorld','function darkIntro'])assert.ok(source.includes(feature),`NEO runtime includes ${feature}`);
