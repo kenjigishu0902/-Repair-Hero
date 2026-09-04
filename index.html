@@ -3,11 +3,11 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
-  <meta name="theme-color" content="#102b46">
+  <meta name="theme-color" content="#07111f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <title>Repair Hero — スマホ修理商店街</title>
   <meta name="description" content="フェニちゃんがスマホ修理商店街を駆け抜ける2D横スクロールアクションゲーム">
-  <link rel="stylesheet" href="style.css?v=20260831e">
+  <link rel="stylesheet" href="style.css?v=20260904f">
 </head>
 <body>
   <main id="app">
@@ -24,6 +24,11 @@
       <div id="oxygenHud" class="oxygen-hud hidden"><span>OXYGEN</span><meter id="oxygenGauge" min="0" max="100" value="100">100%</meter></div>
     </header>
     <aside id="bossHud" class="boss-hud hidden" aria-live="polite"><span>BOSS</span><b id="bossName">MEGA BUG TITAN</b><div class="boss-hp-track"><i id="bossHp"></i></div><small id="bossSpecialLabel">必殺技ゲージ</small><div class="boss-special-track"><i id="bossSpecial"></i></div><em id="goalLock">GOAL LOCKED</em></aside>
+    <aside id="missionHud" class="mission-hud hidden" aria-live="polite">
+      <span id="missionStage">STAGE 1-1</span><b id="missionName">スマホ修理商店街</b><small id="missionObjective">修復ポイントへ到達</small>
+      <div class="mission-progress"><i id="missionProgress"></i></div>
+    </aside>
+    <aside id="comboHud" class="combo-hud hidden" aria-live="polite"><span id="comboRank">C</span><b><i id="comboCount">02</i> HIT</b><small>REPAIR FLOW</small></aside>
     <aside id="darkHeartHud" class="dark-heart-hud hidden" aria-live="polite" aria-label="燃えるハート復活ストック">
       <span>REVIVE STOCK</span><b><i aria-hidden="true">🔥❤️</i> × <strong id="darkHeartCount">00</strong> / 15</b><em id="darkHeartMax" class="hidden">MAX</em>
     </aside>
@@ -33,8 +38,8 @@
       <div class="title-enemy title-enemy-left" aria-hidden="true"><img src="./enemy_phone_bot.png" alt="" decoding="async"></div>
       <div class="title-enemy title-enemy-right" aria-hidden="true"><img src="./enemy_battle_drone.png" alt="" decoding="async"></div>
       <div class="title-core">
-        <div class="title-badge">MOBILE TAP STABLE · BUILD 08.31-E</div>
-        <p class="title-overline"><span>PHOENIX REPAIR ACTION</span><b>SYSTEM ONLINE</b></p>
+        <div class="title-badge">NEO 2.5D ACTION · BUILD 09.04-F</div>
+        <p class="title-overline"><span>PHOENIX REPAIR PROTOCOL</span><b>ONLINE</b></p>
         <h1><span>REPAIR</span><strong>HERO</strong></h1>
         <p class="title-tagline">壊れた街を、炎の翼で修理せよ。</p>
         <div class="title-status" aria-label="ゲーム内容"><span>11 STAGES</span><span>5 FORMS</span><span>4 BOSS TYPES</span></div>
@@ -55,6 +60,10 @@
         <p class="help">移動 A/D・伏せ S/↓・ジャンプ SPACE・攻撃 X/J・翼 Z/K・必殺技 C/V・左右ダッシュ Q/E</p>
       </div>
       <div class="title-feni"><i aria-hidden="true"></i><img src="./feni.png" alt="主人公 フェニちゃん" decoding="async"><span><b>FENI-CHAN</b> REPAIR HERO</span></div>
+    </section>
+
+    <section id="stageIntro" class="stage-intro hidden" aria-live="polite">
+      <small id="stageIntroKicker">MISSION 01</small><strong id="stageIntroTitle">スマホ修理商店街</strong><span id="stageIntroObjective">修復ポイントへ到達</span>
     </section>
 
     <section id="controlsTutorial" class="tutorial-modal hidden" role="dialog" aria-modal="true" aria-labelledby="tutorialTitle">
@@ -140,6 +149,6 @@
     </nav>
   </main>
   <script src="sound.js?v=20260824d"></script>
-  <script src="game.js?v=20260831e"></script>
+  <script src="game.js?v=20260904f"></script>
 </body>
 </html>

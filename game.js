@@ -21,7 +21,10 @@
     storyDialogue: $('#storyDialogue'), storySpeaker: $('#storySpeaker'), storyLine: $('#storyLine'), storyTap: $('#storyTap'),
     storyCinematic: $('#storyCinematic'), storyPortrait: $('#storyPortrait'), storyCinematicSpeaker: $('#storyCinematicSpeaker'), storyCinematicMood: $('#storyCinematicMood'),
     storyBanner: $('#storyBanner'), storyFx: $('#storyFx'),
-    characterSelect: $('#characterSelect'), selectFeni: $('#selectFeni'), selectDarkFeni: $('#selectDarkFeni'), characterName: $('#characterName')
+    characterSelect: $('#characterSelect'), selectFeni: $('#selectFeni'), selectDarkFeni: $('#selectDarkFeni'), characterName: $('#characterName'),
+    missionHud: $('#missionHud'), missionStage: $('#missionStage'), missionName: $('#missionName'), missionObjective: $('#missionObjective'), missionProgress: $('#missionProgress'),
+    comboHud: $('#comboHud'), comboRank: $('#comboRank'), comboCount: $('#comboCount'),
+    stageIntro: $('#stageIntro'), stageIntroKicker: $('#stageIntroKicker'), stageIntroTitle: $('#stageIntroTitle'), stageIntroObjective: $('#stageIntroObjective')
   };
 
   function createLazyImage(source) {
@@ -277,6 +280,7 @@
   let vines = [], warpGate = null, warpSpawnTimer = 0, bonusStage = null, darkClones = [];
   let darkStory = null;
   let assetScanStage=-1,assetScanX=-Infinity;
+  let comboCount=0,comboTimer=0,comboRank='C',impactGlow=0;
   const bossCutinPreloads=new Map();
 
   function preloadNearbyAssets() {
@@ -317,6 +321,29 @@
 
   function stageMusicName() { return STAGES[currentStage]?.music||'game'; }
   function bossMusicName(phase=1) { const stage=STAGES[currentStage];return phase>=2?(stage?.bossPhaseMusic||'boss2'):(stage?.bossMusic||'boss'); }
+
+  function stageObjective(stage=STAGES[currentStage]) {
+    if(stage.finale)return '黒炎の鏡像を超え、真実へ辿り着け';
+    if(stage.bossType)return `${stage.bossType==='shark'?'深海':stage.bossType==='gorilla'?'獣王':'基板'}ボスを撃破してコアを修復`;
+    if(stage.chaseWall)return '圧壊ウォールから逃げ切れ';
+    if(stage.water)return '酸素を管理し、深海ルートを突破';
+    if(stage.maze)return '分岐を見極め、地下迷宮を修復';
+    return '修復ポイントへ到達';
+  }
+
+  function resetCombatFlow(){comboCount=0;comboTimer=0;comboRank='C';impactGlow=0;ui.comboHud?.classList.add('hidden');}
+  function registerCombatHit(weight=1){
+    comboCount=Math.min(99,comboCount+Math.max(1,Math.round(weight)));comboTimer=2.8;
+    comboRank=comboCount>=30?'S':comboCount>=20?'A':comboCount>=12?'B':'C';impactGlow=Math.min(1,impactGlow+.24);
+    ui.comboHud?.classList.remove('hidden');ui.comboHud?.classList.remove('rank-b','rank-a','rank-s');if(comboRank!=='C')ui.comboHud?.classList.add(`rank-${comboRank.toLowerCase()}`);
+  }
+
+  function showStageIntro(){
+    const stage=STAGES[currentStage],objective=stageObjective(stage),number=String(currentStage+1).padStart(2,'0');
+    ui.stageIntroKicker.textContent=`MISSION ${number} // STAGE ${stage.id}`;ui.stageIntroTitle.textContent=stage.name;ui.stageIntroObjective.textContent=objective;
+    ui.stageIntro.classList.remove('hidden','play');void ui.stageIntro.offsetWidth;ui.stageIntro.classList.add('play');
+    setTimeout(()=>ui.stageIntro?.classList.add('hidden'),2600);
+  }
 
   function isDarkPlayable(){return activeCharacter===PLAYABLE_CHARACTER.DARK_FENI;}
   function darkPlayerMode(){return DARK_PLAYER_MODE_MAP[playerMode]||'normal';}
@@ -985,6 +1012,7 @@
     ui.bossName.textContent=boss?.name||'MEGA BUG TITAN';
     if(ui.bossSpecial)ui.bossSpecial.style.width='0%';if(ui.bossSpecialLabel)ui.bossSpecialLabel.textContent='必殺技ゲージ';ui.bossHud.classList.remove('special-ready');ui.bossHud.classList.toggle('dark-seven',boss?.type==='darkFeni');
     remainingTime = STAGES[currentStage].time || START_TIME;
+    resetCombatFlow();
     elapsed = 0;
     cameraX = 0;
     shake = 0;
@@ -1005,6 +1033,7 @@
     ui.pause.classList.remove('hidden');
     ui.modeHud.classList.add('hidden');
     ui.bossHud.classList.add('hidden'); ui.attack.classList.toggle('hidden',!player.hasSword); document.body.classList.remove('boss-phase2'); ui.goalLock.textContent='GOAL LOCKED'; ui.goalLock.classList.remove('unlocked');
+    ui.missionHud?.classList.remove('hidden');showStageIntro();
     if(STAGES[currentStage].finale){beginDarkRouteChoice();}
     else {say(`STAGE ${STAGES[currentStage].id}\n${STAGES[currentStage].name}`);window.RepairHeroSound?.music(stageMusicName());sound('start');}
   }
@@ -1018,6 +1047,7 @@
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
     ui.bossHud.classList.add('hidden'); ui.attack.classList.add('hidden');
+    ui.missionHud?.classList.add('hidden');ui.comboHud?.classList.add('hidden');ui.stageIntro?.classList.add('hidden');
     $('#resultKicker').textContent = cleared ? 'STAGE CLEAR!' : 'GAME OVER';
     $('#resultTitle').textContent = cleared ? (currentStage === STAGES.length-1 ? '全ステージ修理完了！' : `${STAGES[currentStage].id} 修理完了！`) : 'もう一度挑戦！';
     $('#next').classList.toggle('hidden', !cleared || currentStage === STAGES.length-1);
@@ -1039,6 +1069,7 @@
     ui.touch.classList.add('hidden');
     ui.pause.classList.add('hidden');
     ui.tutorial?.classList.add('hidden');
+    ui.missionHud?.classList.add('hidden');ui.comboHud?.classList.add('hidden');ui.stageIntro?.classList.add('hidden');
     darkStory=null;hideDarkStoryUi();
     document.body.classList.remove('water-stage','jungle-stage','dark-stage','bonus-stage','king-mode','boss-phase2','dark-playable','dark-battle-wide');
     window.RepairHeroSound?.music('title');
@@ -1819,6 +1850,7 @@
       amount=Math.max(.25,amount*.58);combatFx.push({x:boss.x+boss.w/2,y:boss.y+boss.h/2,life:.3,size:58,type:'clash'});
     }
     boss.hp = Math.max(0, boss.hp - amount); boss.hit = boss.type==='darkFeni' ? .28 : .34; boss.vx += player.facing * force;
+    registerCombatHit(amount>=4?3:1);
     player.score += scoreValue(amount * 700); shake = amount >= 4 ? 25 : 12;
     combatFx.push({x:boss.x+boss.w/2,y:boss.y+boss.h/2,life:.55,size:amount>=4?125:65,type:amount>=4?'punch':'slash'});
     sound(amount >= 4 ? 'punchHit' : 'swordHit');
@@ -2839,13 +2871,14 @@
     if(!enemy?.alive||enemy.allied)return false;
     enemy.hp=Math.max(0,(enemy.hp??1)-amount);enemy.hit=.22;enemy.vx+=force;
     if(enemy.hp<=0){defeatEnemy(enemy,style,points);return true;}
+    registerCombatHit(1);
     player.score+=scoreValue(90);combatFx.push({x:enemy.x+enemy.w/2,y:enemy.y+enemy.h*.35,life:.3,size:42,type:'clash'});
     for(let index=0;index<effectCount(7,4);index++)sparks.push({x:enemy.x+enemy.w/2,y:enemy.y+enemy.h/2,vx:(Math.random()-.5)*260,vy:(Math.random()-.7)*250,life:.24+Math.random()*.2,size:2+Math.random()*4});
     sound('armorHit');return false;
   }
 
   function defeatEnemy(enemy, style='normal', points=500) {
-    if(!enemy.alive)return; enemy.alive=false;enemy.hp=0; enemy.squish=.45; player.score+=scoreValue(points);
+    if(!enemy.alive)return; enemy.alive=false;enemy.hp=0; enemy.squish=.45; player.score+=scoreValue(points);registerCombatHit(style==='muscle'||style==='king'?2:1);
     const type=style==='king'?'gold':style==='lcd'?'speed':style==='muscle'?'fire':style==='sword'?'slash':'explosion';
     combatFx.push({x:enemy.x+enemy.w/2,y:enemy.y+enemy.h/2,life:.65,size:style==='muscle'?110:65,type,points:scoreValue(points)});
     for(let i=0;i<effectCount(14,7);i++)sparks.push({x:enemy.x+enemy.w/2,y:enemy.y+enemy.h/2,vx:(Math.random()-.5)*(style==='muscle'?700:360),vy:(Math.random()-.7)*400,life:.35+Math.random()*.35,size:3+Math.random()*5});
@@ -3156,6 +3189,8 @@
     if(hitStop>0){hitStop=Math.max(0,hitStop-dt);return;}
     if (slowMotion > 0) { slowMotion = Math.max(0, slowMotion - dt); dt *= .25; }
     elapsed += dt;
+    if(comboTimer>0){comboTimer=Math.max(0,comboTimer-dt);if(comboTimer<=0){comboCount=0;comboRank='C';ui.comboHud?.classList.add('hidden');}}
+    impactGlow*=Math.pow(.055,dt);
     if(bonusStage?.active){updateBonusStage(dt);shake*=Math.pow(.02,dt);landingShake*=Math.pow(.01,dt);return;}
     const storyLocked=updateDarkStory(dt);
     if(mode!=='playing')return;
@@ -3229,6 +3264,8 @@
     ui.score.textContent = String(player.score).padStart(6, '0');
     ui.timer.textContent = String(Math.ceil(remainingTime)).padStart(3, '0');
     ui.dashGauge.value = player.dash;
+    if(ui.missionHud){const stage=STAGES[currentStage],progress=Math.max(0,Math.min(100,(player.x/Math.max(1,WORLD_WIDTH-player.w))*100));ui.missionStage.textContent=`STAGE ${stage.id}`;ui.missionName.textContent=stage.name;ui.missionObjective.textContent=stageObjective(stage);ui.missionProgress.style.width=`${progress}%`;}
+    if(ui.comboHud){ui.comboCount.textContent=String(comboCount).padStart(2,'0');ui.comboRank.textContent=comboRank;}
     if(ui.wingAttack){const ready=player.wingCooldown<=0&&!player.dead;ui.wingAttack.classList.toggle('ready',ready);ui.wingAttack.classList.toggle('cooldown',!ready);ui.wingAttack.setAttribute?.('aria-label',ready?'翼を飛ばす攻撃・使用可能':`翼攻撃・再使用まで${player.wingCooldown.toFixed(1)}秒`);}
     if(ui.specialAttack){
       const labels=isDarkPlayable()?{normal:['🌑','混沌黒翼'],battery:['⚡','紫電領域'],lcd:['✦','断層処刑'],muscle:['🗡','大陸裂斬'],king:['♜','鏡像軍団']}:{normal:['🔥','火の羽乱舞'],battery:['🤝','味方リンク'],lcd:['✦','瞬間撃破'],muscle:['👊','全方位ラッシュ'],king:['👑','分身召喚']},ready=!player.dead&&(playerMode==='normal'?player.specialCooldown<=0:!player.specialUsed);
@@ -3682,8 +3719,13 @@
     const particleCount=reducedEffects?2:4;ctx.fillStyle=aura;for(let particle=0;particle<particleCount;particle++){const phase=elapsed*(.8+particle*.11)+particle*2.3,px=Math.sin(phase)*size*(.24+particle*.03),py=size*.34-((phase*.11)%1)*size*.55;ctx.globalAlpha=.08+.09*(1-(phase*.11)%1);ctx.fillRect(px,py,2+particle%2,3+particle%3);}ctx.restore();
   }
 
+  function drawActorShadow(x,y,w,h,color='#07111f'){
+    ctx.save();ctx.globalAlpha=.24;ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=reducedEffects?5:13;ctx.beginPath();ctx.ellipse(x+w/2,y+h-2,w*.46,Math.max(5,h*.055),0,0,Math.PI*2);ctx.fill();ctx.restore();
+  }
+
   function drawBoss(){
     const bossDrawX=boss.type==='darkFeni'&&Number.isFinite(boss.renderX)?boss.renderX:boss.x,bossDrawY=boss.type==='darkFeni'&&Number.isFinite(boss.renderY)?boss.renderY:boss.y;
+    drawActorShadow(bossDrawX,bossDrawY,boss.w,boss.h,boss.type==='darkFeni'?'#310034':'#08131e');
     ctx.save();ctx.translate(bossDrawX+boss.w/2,bossDrawY+boss.h/2);ctx.shadowColor=boss.hit?'#fff':'#ff352d';ctx.shadowBlur=35;
     if(boss.state==='intro'){const introProgress=1-boss.introLock/(boss.introDuration||BOSS_INTRO_DURATION);ctx.globalAlpha=.45+.55*introProgress;ctx.scale(.78+.22*introProgress,.78+.22*introProgress);}
     if(boss.type==='darkFeni'&&boss.defeat){const vanish=Math.max(0,(boss.defeat-.55)/2.1);ctx.globalAlpha*=Math.max(0,1-vanish);ctx.translate(vanish*260,-vanish*95);ctx.scale(1+vanish*.22,Math.max(.08,1-vanish*.62));}
@@ -4145,6 +4187,7 @@
   }
 
   function drawPlayer() {
+    drawActorShadow(player.x,player.y,player.w,player.h,isDarkPlayable()?'#26002f':'#071522');
     ctx.save();
     if (player.invincible > 0 && Math.floor(elapsed * 14) % 2) ctx.globalAlpha=.34;
     drawPlayerMotionAccents();
@@ -4173,6 +4216,7 @@
   function drawEnemy(enemy) {
     if (!enemy.alive && enemy.squish <= 0) return;
     if(!visibleInCamera(enemy,140))return;
+    if(!enemy.flying&&!enemy.aquatic)drawActorShadow(enemy.x,enemy.y,enemy.w,enemy.h,'#07111f');
     ctx.save();ctx.translate(enemy.x+enemy.w/2,enemy.y+enemy.h/2);
     const warning=enemy.warning>0&&!enemy.allied;const facing=enemy.vx<0?-1:1;
     ctx.shadowColor=enemy.allied?'#56ff88':warning?'#ff251d':enemy.aquatic?'#4cecff':enemy.flying?'#9cefff':'#ff6049';ctx.shadowBlur=warning?34:enemy.allied?28:15;
@@ -4269,6 +4313,20 @@
     ctx.restore();
   }
 
+  function drawNeoAtmosphere(){
+    if(mode==='title')return;
+    ctx.save();
+    const stage=STAGES[currentStage],palette=stage.theme==='dark'?['#aa22ff','#ff274f']:stage.theme==='sea'?['#27dfff','#176dff']:stage.theme==='jungle'?['#6dff91','#f6df58']:['#43eaff','#ff7a32'];
+    const heroX=offsetX+(player.x+player.w/2-cameraX)*scale,heroY=offsetY+(player.y+player.h/2-cameraY)*scale;
+    const bloom=ctx.createRadialGradient(heroX,heroY,8,heroX,heroY,Math.max(150,260*scale));bloom.addColorStop(0,`${palette[0]}20`);bloom.addColorStop(.48,`${palette[0]}0a`);bloom.addColorStop(1,'#00000000');ctx.fillStyle=bloom;ctx.fillRect(0,0,width,height);
+    const shade=ctx.createRadialGradient(width*.5,height*.46,Math.min(width,height)*.22,width*.5,height*.5,Math.max(width,height)*.72);shade.addColorStop(0,'#00000000');shade.addColorStop(.72,'#02081318');shade.addColorStop(1,'#01040dcc');ctx.fillStyle=shade;ctx.fillRect(0,0,width,height);
+    const floor=ctx.createLinearGradient(0,height*.72,0,height);floor.addColorStop(0,'#02081500');floor.addColorStop(1,'#020815b8');ctx.fillStyle=floor;ctx.fillRect(0,height*.66,width,height*.34);
+    ctx.globalAlpha=reducedEffects?.11:.18;ctx.fillStyle=palette[0];const drift=(cameraX*.08)%180;for(let index=-1;index<Math.ceil(width/180)+1;index++){const x=index*180-drift,wave=Math.sin(index*2.3+elapsed*.45)*16;ctx.beginPath();ctx.moveTo(x,height);ctx.lineTo(x+34,height-44-wave);ctx.lineTo(x+66,height-12);ctx.lineTo(x+112,height-68+wave);ctx.lineTo(x+154,height);ctx.closePath();ctx.fill();}
+    if(impactGlow>.015){ctx.globalAlpha=impactGlow*.3;ctx.strokeStyle=comboRank==='S'?'#fff36b':palette[1];ctx.lineWidth=3+impactGlow*12;ctx.shadowColor=palette[1];ctx.shadowBlur=24;ctx.strokeRect(4,4,width-8,height-8);}
+    if(!reducedEffects){ctx.globalAlpha=.035;ctx.fillStyle='#fff';for(let line=0;line<height;line+=5)ctx.fillRect(0,line,width,1);}
+    ctx.restore();
+  }
+
   function draw() {
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.fillStyle = '#102b46'; ctx.fillRect(0, 0, width, height);
@@ -4276,6 +4334,7 @@
     if(bonusStage?.active)drawBonusStage();
     else{drawBackground();if(mode!=='title')drawWorld();}
     ctx.restore();
+    drawNeoAtmosphere();
     if (paused && mode === 'playing') {
       ctx.fillStyle = '#04111dcc'; ctx.fillRect(0, 0, width, height); ctx.fillStyle = '#fff'; ctx.textAlign = 'center'; ctx.font = `bold ${Math.max(30, 52 * scale)}px Arial`; ctx.fillText('PAUSE', width / 2, height / 2);
       ctx.font = `${Math.max(14, 18 * scale)}px Arial`; ctx.fillText('Ⅱ / ESC で再開', width / 2, height / 2 + 42 * scale);
@@ -4390,7 +4449,7 @@
       collectStaminaCola:()=>{const cola=items.find((item)=>item.type==='staminaCola');if(!cola)return false;player.x=cola.x-player.w/2;player.y=cola.y-player.h/2;updateObjects(.016);return cola.collected;},
       defeatBoss:()=>{if(boss){boss.hp=1;boss.hit=0;boss.state=bossMoveState();boss.intro=true;boss.active=true;damageBoss(99);}},
       resizeViewport:(nextWidth,nextHeight,nextScale=1,force=false)=>{if(window.visualViewport){window.visualViewport.width=nextWidth;window.visualViewport.height=nextHeight;window.visualViewport.scale=nextScale;}window.innerWidth=nextWidth;window.innerHeight=nextHeight;resize(force);return {width,height,scale,baseScale,portrait};},
-      state:()=>({mode,currentStage:STAGES[currentStage].id,stageCount:STAGES.length,selectedCharacter,activeCharacter,stageMusic:stageMusicName(),bossMusic:boss?bossMusicName(boss.phase):null,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),cutinImageSource:ui.ultimateCutinImage?.src||'',cutinQuote:ui.ultimateCutinQuote?.textContent||'',dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{character:player.character,darkMode:player.darkMode,darkTransformTimer:player.darkTransformTimer,x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,maxHp:player.maxHp,invincible:player.invincible,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),walkPhase:player.walkPhase,visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,maxJumps:isDarkPlayable()?DARK_PLAYER_MAX_JUMPS:MAX_JUMPS,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,idleActionTime:player.idleActionTime,idleActionDuration:player.idleActionDuration,idleLastAction:player.idleLastAction,idleExpression:player.idleExpression,idleExitAction:player.idleExitAction,idleBlend:darkIdleActionBlend(player),blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,ultimateAirborne:!!player.ultimateSequence?.airborne,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,darkComboStep:player.darkComboStep,darkComboTimer:player.darkComboTimer,swordPose:currentSwordPose(),swordAnchor:swordHandAnchor(),vineAttached:!!player.vine,oxygenGear:stageIsWater()},
+      state:()=>({mode,currentStage:STAGES[currentStage].id,stageCount:STAGES.length,selectedCharacter,activeCharacter,stageMusic:stageMusicName(),bossMusic:boss?bossMusicName(boss.phase):null,notice:(ui.noticeText||ui.notice).textContent,noticeExpression:activeNoticePose,cutinVisible:!ui.ultimateCutin?.classList.contains('hidden'),cutinImageSource:ui.ultimateCutinImage?.src||'',cutinQuote:ui.ultimateCutinQuote?.textContent||'',combatFlow:{count:comboCount,rank:comboRank,timer:comboTimer,objective:stageObjective()},dashBalance:{drainPerSecond:DASH_DRAIN_PER_SECOND,recoveryPerSecond:DASH_RECOVERY_PER_SECOND},player:{character:player.character,darkMode:player.darkMode,darkTransformTimer:player.darkTransformTimer,x:player.x,y:player.y,vx:player.vx,vy:player.vy,hp:player.hp,maxHp:player.maxHp,invincible:player.invincible,grounded:player.grounded,state:player.state,motionFrame:currentMotionFrame(),renderExpression:currentExpressionState(),walkBlend:walkFrameBlend(),walkPhase:player.walkPhase,visualPose:playerVisualPose(),damageBox:playerDamageBox(),crouching:player.crouching,voidRecoveries:player.voidRecoveries,turnPoseTime:player.turnPoseTime,jumpCount:player.jumpCount,maxJumps:isDarkPlayable()?DARK_PLAYER_MAX_JUMPS:MAX_JUMPS,dash:player.dash,dashPoseTime:player.dashPoseTime,coinSpeed:player.coinSpeed,speedTier:player.speedTier,speedBurst:player.speedBurst,dropTimer:player.dropTimer,chargeTime:player.chargeTime,revivePose:player.revivePose,idleTime:player.idleTime,idleAction:player.idleAction,idleActionTime:player.idleActionTime,idleActionDuration:player.idleActionDuration,idleLastAction:player.idleLastAction,idleExpression:player.idleExpression,idleExitAction:player.idleExitAction,idleBlend:darkIdleActionBlend(player),blinkTime:player.blinkTime,wingAttackTime:player.wingAttackTime,wingCooldown:player.wingCooldown,specialTime:player.specialTime,specialCooldown:player.specialCooldown,specialUsed:player.specialUsed,ultimatePhase:player.ultimateSequence?.phase||null,ultimateAirborne:!!player.ultimateSequence?.airborne,clearMode:player.clearMode,mode:playerMode,modeTimer,shields:player.shields,hasSword:player.hasSword,attackTime:player.attackTime,darkComboStep:player.darkComboStep,darkComboTimer:player.darkComboTimer,swordPose:currentSwordPose(),swordAnchor:swordHandAnchor(),vineAttached:!!player.vine,oxygenGear:stageIsWater()},
         enemiesAlive:enemies.filter((enemy)=>enemy.alive&&!enemy.allied).length,alliesAlive:enemies.filter((enemy)=>enemy.alive&&enemy.allied).length,kingClones:kingClones.length,enemyPositions:enemies.filter((enemy)=>enemy.alive).slice(0,12).map((enemy)=>({type:enemy.type,attack:enemy.attack,alternateAttack:enemy.alternateAttack,attackCooldown:enemy.attackCooldown,allied:enemy.allied,hp:enemy.hp,maxHp:enemy.maxHp,hit:enemy.hit,x:enemy.x,y:enemy.y,w:enemy.w,h:enemy.h})),gimmicks:gimmicks.map((gimmick)=>({type:gimmick.type,x:gimmick.x,y:gimmick.y,w:gimmick.w,h:gimmick.h,targetX:gimmick.targetX,targetY:gimmick.targetY,active:!!gimmick.active,warning:!!gimmick.warning})),hazardPositions:hazards.map((hazard)=>({type:hazard.type,x:hazard.x,y:hazard.y,w:hazard.w,h:hazard.h})),coinPositions:coins.filter((coin)=>!coin.collected).slice(0,12).map((coin)=>({x:coin.x,y:coin.y})),breakablesAlive:breakables.filter((wall)=>wall.alive).length,breakablePositions:breakables.filter((wall)=>wall.alive).slice(0,6).map((wall)=>({x:wall.x,y:wall.y})),checkpoints:checkpoints.map((point)=>({x:point.x,y:point.y,active:point.active,respawnX:point.respawnX,respawnY:point.respawnY})),jumpPadVelocity:JUMP_PAD_VELOCITY,jumpPadPositions:jumpPads.map((pad)=>({x:pad.x,y:pad.y,w:pad.w,h:pad.h})),oneWayPlatforms:allPlatforms().filter(isOneWayPlatform).slice(0,128).map((platform)=>({x:platform.x,y:platform.y,w:platform.w,h:platform.h,surfaceRoute:!!platform.surfaceRoute})),transformTypes:transformItems.filter((item)=>!item.collected).map((item)=>item.type),kingWeight:TRANSFORM_WEIGHTS.filter((type)=>type==='king').length/TRANSFORM_WEIGHTS.length,shockwaves:shockwaves.length,shockwaveKinds:shockwaves.map((wave)=>wave.kind||'ground'),shockwaveData:shockwaves.map((wave)=>({kind:wave.kind||'ground',maxDistance:wave.maxDistance||0,breaksWalls:!!wave.breaksWalls})),rushTrails:rushTrails.length,projectileKinds:droplets.map((drop)=>drop.kind||'droplet'),
         boss:boss?{type:boss.type,name:boss.name,x:boss.x,y:boss.y,w:boss.w,h:boss.h,hp:boss.hp,maxHp:boss.maxHp,alive:boss.alive,active:boss.active,intro:boss.intro,introLock:boss.introLock,phase:boss.phase,state:boss.state,attackName:boss.attackName,recovery:boss.recovery,arenaLeft:boss.arenaLeft,arenaRight:boss.arenaRight,arenaWidth:boss.arenaRight-boss.arenaLeft,arenaUpperPlatforms:staticPlatforms.filter((platform)=>platform.bossArena&&platform.oneWay).length,specialGauge:boss.specialGauge,specialReady:boss.specialReady,specialCount:boss.specialCount,darkMode:boss.darkMode||null,darkModeTimer:boss.darkModeTimer||0,darkModeDwell:boss.darkModeDwell||0,modeTransitionTimer:boss.modeTransitionTimer||0,pendingMode:boss.pendingMode||null,visualPose:boss.visualPose||null,visualVx:boss.visualVx||0,idleAction:boss.idleAction||null,idleActionTime:boss.idleActionTime||0,idleLastAction:boss.idleLastAction||null,idleExpression:boss.idleExpression||'calm',idleExitAction:boss.idleExitAction||null,defeatSequenceStarted:!!boss.defeatSequenceStarted,defeated:bossDefeated,gateX:bossGate.x,gateClosed:bossGate.closed,goalUnlocked,swordX:swordItem?.x,minionsAlive:gorillaMinionsAlive(),damageLocked:boss.type==='gorilla'&&gorillaMinionsAlive()>0,guardBroken:!!boss.guardBroken}:null,goal:{x:goal.x,y:goal.y,unlocked:goalUnlocked},warpGate:warpGate?{x:warpGate.x,y:warpGate.y,life:warpGate.life}:null,bonus:bonusStage?{active:bonusStage.active,timer:bonusStage.timer,collected:bonusStage.collected,coinCount:bonusStage.coins.filter((coin)=>!coin.collected).length}:null,vines:vines.map((vine)=>({x:vine.x,y:vine.y,length:vine.length})),darkClones:darkClones.length,finale:darkStory?{state:darkStory.state,timer:darkStory.timer,focus:darkStory.focus,cameraMode:darkStory.cameraMode||null,heartStock:darkStory.heartStock,heartMax:darkStory.heartMax,heartsRemaining:darkStory.hearts.filter((heart)=>!heart.collected).length,dialogueIndex:darkStory.dialogueIndex,dialogueLine:darkStory.dialogue?.[darkStory.dialogueIndex]?.line||null,locked:darkStoryLocked(),cinematicVisible:!ui.storyCinematic?.classList.contains('hidden'),currentPortrait:darkStory.currentPortrait?{...darkStory.currentPortrait}:null,revive:{...darkStory.revive},retry:{...darkStory.retry},intro:{...darkStory.intro},defeat:{...darkStory.defeat},collapse:{...darkStory.collapse},escape:{active:darkStory.escape.active,wallX:darkStory.escape.wallX,goalX:darkStory.escape.goalX,lastJump:darkStory.escape.lastJump,restarts:darkStory.escape.restarts,debris:darkStory.escape.debris.length},completed:darkStory.completed,staminaColas:items.filter((item)=>item.type==='staminaCola').map((item)=>({collected:item.collected,respawns:item.respawns,respawnTimer:item.respawnTimer}))}:null,osakaBackdrop:['1-1','1-2','1-4','1-8'].includes(STAGES[currentStage].id),feniStoryExpressions:[...FENI_STORY_EXPRESSIONS],enemyProjectileData:droplets.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner})),bossProjectileKinds:projectiles.map((projectile)=>projectile.kind||'orb'),bossProjectileData:projectiles.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),owner:shot.owner,homingTime:shot.homingTime||0})),wingProjectiles:wingShots.map((shot)=>({kind:shot.kind,x:shot.x,y:shot.y,vx:shot.vx,vy:shot.vy,life:shot.life,maxDistance:shot.maxDistance,travel:projectileTravel(shot),piercing:!!shot.piercing})),poolCounts:{droplets:droplets.length,bossProjectiles:projectiles.length,wingShots:wingShots.length,particles:dust.length+sparks.length+modeParticles.length+combatFx.length+speedTrails.length+(darkStory?.escape.debris.length||0)},chaserWall:chaserWall?{x:chaserWall.x,speed:chaserWall.speed}:null,
         world:{width:WORLD_WIDTH,height:WORLD_HEIGHT,viewportWidth,viewportHeight,cameraX,cameraY,scale,baseScale,portrait},render:{touchDevice,reducedEffects,dpr,backingWidth:canvas.width,backingHeight:canvas.height,enemyArt:'mechaPngLazy',assetRequests:{player:Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,!!image.repairRequested])),state:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,record.requested])),motion:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,record.requested])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,!!image.repairRequested])),boss:!!bossImage.repairRequested||!!gorillaBossImage.repairRequested,gorillaBoss:!!gorillaBossImage.repairRequested,sword:!!phoenixSwordImage.repairRequested,darkFeni:{master:!!darkFeniMasterImage.repairRequested,portraits:!!darkFeniPortraitImage.repairRequested,sword:!!darkFeniSwordImage.repairRequested,modeSheet:!!darkFeniModeImage.repairRequested,idleSheet:!!darkFeniIdleImage.repairRequested,playableIcon:!!darkFeniPlayableIconImage.repairRequested}}},images:{...Object.fromEntries(Object.entries(playerImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),stateSheets:Object.fromEntries(Object.entries(playerStateSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),motionSheets:Object.fromEntries(Object.entries(playerMotionSheets).map(([name,record])=>[name,{loaded:record.ready,requested:record.requested,source:record.source}])),enemies:Object.fromEntries(Object.entries(enemyImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),boss:{loaded:bossImage.repairRequested&&bossImage.complete&&bossImage.naturalWidth>0,width:bossImage.naturalWidth,height:bossImage.naturalHeight},gorillaBoss:{loaded:gorillaBossImage.repairRequested&&gorillaBossImage.complete&&gorillaBossImage.naturalWidth>0,width:gorillaBossImage.naturalWidth,height:gorillaBossImage.naturalHeight},sword:{loaded:phoenixSwordImage.repairRequested&&phoenixSwordImage.complete&&phoenixSwordImage.naturalWidth>0,width:phoenixSwordImage.naturalWidth,height:phoenixSwordImage.naturalHeight},swordPoses:Object.fromEntries(Object.entries(swordPoseImages).map(([name,image])=>[name,{loaded:image.repairRequested&&image.complete&&image.naturalWidth>0,width:image.naturalWidth,height:image.naturalHeight}])),darkFeni:{master:{loaded:darkFeniMasterImage.repairRequested&&darkFeniMasterImage.complete&&darkFeniMasterImage.naturalWidth>0,source:darkFeniMasterImage.repairSource},portraits:{loaded:darkFeniPortraitImage.repairRequested&&darkFeniPortraitImage.complete&&darkFeniPortraitImage.naturalWidth>0,source:darkFeniPortraitImage.repairSource},sword:{loaded:darkFeniSwordImage.repairRequested&&darkFeniSwordImage.complete&&darkFeniSwordImage.naturalWidth>0,source:darkFeniSwordImage.repairSource},modeSheet:{loaded:darkFeniModeImage.repairRequested&&darkFeniModeImage.complete&&darkFeniModeImage.naturalWidth>0,source:darkFeniModeImage.repairSource},idleSheet:{loaded:darkFeniIdleImage.repairRequested&&darkFeniIdleImage.complete&&darkFeniIdleImage.naturalWidth>0,source:darkFeniIdleImage.repairSource},playableIcon:{loaded:darkFeniPlayableIconImage.repairRequested&&darkFeniPlayableIconImage.complete&&darkFeniPlayableIconImage.naturalWidth>0,source:darkFeniPlayableIconImage.repairSource}}}})
