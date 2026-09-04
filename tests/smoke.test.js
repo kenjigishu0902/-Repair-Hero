@@ -786,7 +786,7 @@ function testAssetsAndSyntaxSurface() {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
-  const html = fs.readFileSync(path.join(root, 'legacy.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
   assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"[\s\S]+id="ultimateCutinImage"[\s\S]+id="ultimateCutinQuote"/, 'ultimate presentation has generated boss art and live full-screen dialogue surfaces');
@@ -1135,7 +1135,7 @@ function testMobileTapDoesNotZoomViewport() {
 }
 
 function testNeo3dEditionSurface() {
-  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  const html=fs.readFileSync(path.join(root,'neo.html'),'utf8');
   const css=fs.readFileSync(path.join(root,'neo3d.css'),'utf8');
   const source=fs.readFileSync(path.join(root,'neo3d.js'),'utf8');
   assert.match(html,/Repair Hero NEO[\s\S]+REAL-TIME ACTION[\s\S]+11 MISSIONS[\s\S]+5 FORMS/,'public entry is the new NEO action edition');
@@ -1157,7 +1157,10 @@ function testNeo3dEditionSurface() {
   for(const feature of ['function attack','function special','function damage','function drawPhoenix','function drawMech','function drawWorld','function darkIntro'])assert.ok(source.includes(feature),`NEO runtime includes ${feature}`);
   assert.match(css,/safe-area-inset-bottom[\s\S]+@media\(pointer:fine\)/,'new 3D UI handles phone safe areas and desktop input');
   assert.match(html,/assets\/neo3d\/feni_card\.webp[\s\S]+正位置のF胸章[\s\S]+assets\/neo3d\/dark_feni_card\.webp[\s\S]+傷入りF胸章/,'corrected F emblems are also used by both playable-select cards');
-  for(const file of ['legacy.html','neo3d.js','neo3d.css','assets/neo3d/repair_hero_key_visual.webp','assets/neo3d/feni_card.webp','assets/neo3d/dark_feni_card.webp'])assert.ok(fs.existsSync(path.join(root,file)),`${file} exists`);
+  for(const file of ['neo.html','legacy.html','neo3d.js','neo3d.css','assets/neo3d/repair_hero_key_visual.webp','assets/neo3d/feni_card.webp','assets/neo3d/dark_feni_card.webp'])assert.ok(fs.existsSync(path.join(root,file)),`${file} exists`);
+  const publicHtml=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  assert.match(publicHtml,/NEO 2\.5D ACTION · BUILD 09\.04-F/,'public entry shows the restored complete-edition build');
+  assert.match(publicHtml,/id="game"[\s\S]+game\.js\?v=20260904f/,'public entry runs the original complete game engine');
 }
 
 function testSoundRuntime() {
