@@ -1148,7 +1148,8 @@ function testNeo3dEditionSurface() {
   assert.match(source,/Correct forward F:[^\n]+cracked version[\s\S]+if\(dark\)/,'3D Feni uses a forward F and Dark Feni owns the scarred emblem variant');
   for(const feature of ['function attack','function special','function damage','function drawPhoenix','function drawMech','function drawWorld','function darkIntro'])assert.ok(source.includes(feature),`NEO runtime includes ${feature}`);
   assert.match(css,/safe-area-inset-bottom[\s\S]+@media\(pointer:fine\)/,'new 3D UI handles phone safe areas and desktop input');
-  for(const file of ['legacy.html','neo3d.js','neo3d.css','assets/neo3d/repair_hero_key_visual.webp'])assert.ok(fs.existsSync(path.join(root,file)),`${file} exists`);
+  assert.match(html,/assets\/neo3d\/feni_card\.webp[\s\S]+正位置のF胸章[\s\S]+assets\/neo3d\/dark_feni_card\.webp[\s\S]+傷入りF胸章/,'corrected F emblems are also used by both playable-select cards');
+  for(const file of ['legacy.html','neo3d.js','neo3d.css','assets/neo3d/repair_hero_key_visual.webp','assets/neo3d/feni_card.webp','assets/neo3d/dark_feni_card.webp'])assert.ok(fs.existsSync(path.join(root,file)),`${file} exists`);
 }
 
 function testSoundRuntime() {
