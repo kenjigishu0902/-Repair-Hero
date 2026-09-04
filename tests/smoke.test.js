@@ -34,7 +34,7 @@ class Element {
   setPointerCapture() {}
   getContext() {
     const gradient = { addColorStop() {} };
-    return new Proxy({ createLinearGradient: () => gradient }, {
+    return new Proxy({ createLinearGradient: () => gradient, createRadialGradient: () => gradient }, {
       get(target, key) { return key in target ? target[key] : () => {}; }
     });
   }
@@ -48,7 +48,9 @@ function createGame({ width = 1280, height = 720, touch = false } = {}) {
     'bossName', 'bossHp', 'bossSpecial', 'bossSpecialLabel', 'goalLock', 'attack', 'wingAttack', 'specialAttack', 'oxygenHud', 'oxygenGauge', 'start', 'retry', 'next', 'titleBack',
     'resultKicker', 'resultTitle', 'resultStats', 'resultFeni', 'controlsTutorial', 'tutorialOpen', 'tutorialClose',
     'darkHeartHud', 'darkHeartCount', 'darkHeartMax', 'irregularChoice', 'tryDarkFeni', 'darkFeniStart', 'characterSelect', 'selectFeni', 'selectDarkFeni',
-    'storyDialogue', 'storySpeaker', 'storyLine', 'storyTap', 'storyCinematic', 'storyPortrait', 'storyCinematicSpeaker', 'storyCinematicMood', 'storyBanner', 'storyFx'
+    'storyDialogue', 'storySpeaker', 'storyLine', 'storyTap', 'storyCinematic', 'storyPortrait', 'storyCinematicSpeaker', 'storyCinematicMood', 'storyBanner', 'storyFx',
+    'missionHud', 'missionStage', 'missionName', 'missionObjective', 'missionProgress', 'comboHud', 'comboRank', 'comboCount',
+    'stageIntro', 'stageIntroKicker', 'stageIntroTitle', 'stageIntroObjective'
   ];
   const elements = Object.fromEntries(ids.map((id) => [id, new Element(id)]));
   const buttons = ['dashLeft', 'dashRight', 'left', 'right', 'up', 'down', 'wing', 'special', 'attack', 'jump'].map((name) => {
@@ -826,7 +828,9 @@ function testAssetsAndSyntaxSurface() {
   assert.match(css, /body\.touch-device\.boss-phase2 #game\{filter:none\}/, 'touch devices avoid the full-canvas boss filter');
   assert.match(css, /env\(safe-area-inset-top\)[\s\S]+env\(safe-area-inset-bottom\)/, 'story UI respects notches, Dynamic Island, and the home indicator');
   assert.match(css, /character-select[\s\S]+character-card\.dark[\s\S]+dark-battle-wide[\s\S]+@media\(orientation:landscape\) and \(max-height:620px\)/, 'playable selection and wide-battle UI include phone portrait and short-landscape adaptations');
-  assert.match(html, /MOBILE TAP STABLE · BUILD 08\.31-E[\s\S]+game\.js\?v=20260831e/, 'the visible build badge and cache-busted game script identify the tap-stable mobile build');
+  assert.match(html, /NEO 2\.5D ACTION · BUILD 09\.04-F[\s\S]+game\.js\?v=20260904f/, 'the visible build badge and cache-busted game script identify the modernized 2.5D build');
+  assert.match(html, /id="missionHud"[\s\S]+id="missionProgress"[\s\S]+id="comboHud"[\s\S]+id="comboRank"[\s\S]+id="stageIntro"/, 'modern mission, progress, combat-flow, and stage-intro surfaces are present');
+  assert.match(gameSource, /function stageObjective[\s\S]+function registerCombatHit[\s\S]+function drawActorShadow[\s\S]+function drawNeoAtmosphere/, 'the modern presentation layer is backed by live objective, combo, grounding, and atmosphere systems');
   assert.match(gameSource, /KeyJ:'attack'[\s\S]+KeyK:'wing'[\s\S]+KeyV:'special'[\s\S]+KeyQ:'dashLeft'[\s\S]+KeyE:'dashRight'/, 'PC keyboard maps attacks, ultimates, and directional dashes');
   for (const source of html.matchAll(/(?:src|href)="([^"#]+)"/g)) {
     const local = source[1].replace(/^\.\//, '').split('?')[0];
