@@ -786,7 +786,7 @@ function testAssetsAndSyntaxSurface() {
     assert.ok(fs.existsSync(path.join(root, file)), `${file} exists`);
     assert.ok(fs.statSync(path.join(root, file)).size > 1000, `${file} is a real image asset`);
   }
-  const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
+  const html = fs.readFileSync(path.join(root, 'legacy.html'), 'utf8');
   assert.match(html, /data-input="wing"/, 'mobile UI exposes the Phoenix Wing attack button');
   assert.match(html, /data-input="special"/, 'mobile UI exposes the mode-specific ultimate button');
   assert.match(html, /id="ultimateCutin"[\s\S]+id="ultimateCutinPortrait"[\s\S]+id="ultimateCutinImage"[\s\S]+id="ultimateCutinQuote"/, 'ultimate presentation has generated boss art and live full-screen dialogue surfaces');
@@ -1134,6 +1134,23 @@ function testMobileTapDoesNotZoomViewport() {
   assert.notEqual(current.baseScale,initial.baseScale,'orientation rebuild recalculates the camera scale');
 }
 
+function testNeo3dEditionSurface() {
+  const html=fs.readFileSync(path.join(root,'index.html'),'utf8');
+  const css=fs.readFileSync(path.join(root,'neo3d.css'),'utf8');
+  const source=fs.readFileSync(path.join(root,'neo3d.js'),'utf8');
+  assert.match(html,/Repair Hero NEO[\s\S]+REAL-TIME 3D[\s\S]+11 MISSIONS[\s\S]+5 FORMS/,'public entry is the new NEO 3D edition');
+  assert.match(css,/repair_hero_key_visual\.webp/,'new cinematic key art is integrated into the title presentation');
+  assert.match(html,/NATIVE WEBGL · BUILD 09\.04-G/,'the visible WebGL build identifier is present');
+  assert.match(html,/href="legacy\.html"/,'complete original edition remains available without losing prior work');
+  assert.match(html,/data-key="dodge"[\s\S]+data-key="attack"[\s\S]+data-key="jump"[\s\S]+data-key="special"/,'3D mobile controls expose dodge, attack, jump, and burst');
+  assert.match(source,/getContext\('webgl'/,'NEO edition uses native real-time WebGL rather than a flat CSS mockup');
+  assert.match(source,/const STAGES=\[[\s\S]+DARK FENI-CHAN/,'all eleven missions culminate in the Dark Feni route');
+  assert.match(source,/Correct forward F:[^\n]+cracked version[\s\S]+if\(dark\)/,'3D Feni uses a forward F and Dark Feni owns the scarred emblem variant');
+  for(const feature of ['function attack','function special','function damage','function drawPhoenix','function drawMech','function drawWorld','function darkIntro'])assert.ok(source.includes(feature),`NEO runtime includes ${feature}`);
+  assert.match(css,/safe-area-inset-bottom[\s\S]+@media\(pointer:fine\)/,'new 3D UI handles phone safe areas and desktop input');
+  for(const file of ['legacy.html','neo3d.js','neo3d.css','assets/neo3d/repair_hero_key_visual.webp'])assert.ok(fs.existsSync(path.join(root,file)),`${file} exists`);
+}
+
 function testSoundRuntime() {
   class AudioContext {
     constructor() { this.state = 'running'; this.currentTime = 0; this.destination = {}; }
@@ -1199,6 +1216,7 @@ testRushPunch();
 testBossGateAndChaseWall();
 testViewportMatrix();
 testMobileTapDoesNotZoomViewport();
+testNeo3dEditionSurface();
 testAssetsAndSyntaxSurface();
 testLazyAssetLoadingAndMechaEnemies();
 testJungleRaidBossGuardMusicAndSwordTracking();
